@@ -43,6 +43,8 @@ except ImportError:
     grp = pwd = None
 
 from upath import UPath
+from upath.core import WindowsUPath
+from upath.core import PosixUPath
 
 
 # Make sure any symbolic links in the base test path are resolved.
@@ -1567,11 +1569,11 @@ class PurePathSubclassTest(PurePathTest):
 
 @only_posix
 class PosixPathAsPureTest(PurePosixPathTest):
-    cls = UPath
+    cls = PosixUPath
 
 @only_nt
 class WindowsPathAsPureTest(PureWindowsPathTest):
-    cls = UPath
+    cls = WindowsUPath
 
     def test_owner(self):
         P = self.cls
@@ -1837,6 +1839,7 @@ class PathTest(unittest.TestCase):
         _check(path, "dirb/file*", True, [])
         _check(path, "dirb/file*", False, ["dirB/fileB"])
 
+    @unittest.skip("python-3.13")
     @os_helper.skip_unless_symlink
     def test_glob_follow_symlinks_common(self):
         def _check(path, glob, expected):
@@ -1862,6 +1865,7 @@ class PathTest(unittest.TestCase):
         _check(p, "dir*/*/../dirD/**/", ["dirC/dirD/../dirD"])
         _check(p, "*/dirD/**/", ["dirC/dirD"])
 
+    @unittest.skip("python-3.13")
     @os_helper.skip_unless_symlink
     def test_glob_no_follow_symlinks_common(self):
         def _check(path, glob, expected):
@@ -1927,6 +1931,7 @@ class PathTest(unittest.TestCase):
         _check(p.rglob("*.txt"), ["dirC/novel.txt"])
         _check(p.rglob("*.*"), ["dirC/novel.txt"])
 
+    @unittest.skip("python-3.13")
     @os_helper.skip_unless_symlink
     def test_rglob_follow_symlinks_common(self):
         def _check(path, glob, expected):
@@ -1956,6 +1961,7 @@ class PathTest(unittest.TestCase):
         _check(p, "*.txt", ["dirC/novel.txt"])
         _check(p, "*.*", ["dirC/novel.txt"])
 
+    @unittest.skip("python-3.13")
     @os_helper.skip_unless_symlink
     def test_rglob_no_follow_symlinks_common(self):
         def _check(path, glob, expected):
@@ -2357,15 +2363,15 @@ class PathTest(unittest.TestCase):
         self._check_complex_symlinks(os.path.join('dirA', '..'))
 
     def test_concrete_class(self):
-        if self.cls is pathlib.Path:
-            expected = pathlib.WindowsPath if os.name == 'nt' else pathlib.PosixPath
+        if self.cls is UPath:
+            expected = WindowsUPath if os.name == 'nt' else PosixUPath
         else:
             expected = self.cls
         p = self.cls('a')
         self.assertIs(type(p), expected)
 
     def test_unsupported_flavour(self):
-        if self.cls._flavour is os.path:
+        if self.cls._flavour is (WindowsUPath._flavour if os.name == "nt" else PosixUPath._flavour):
             self.skipTest("path flavour is supported")
         else:
             self.assertRaises(NotImplementedError, self.cls)
@@ -3075,6 +3081,7 @@ class WalkTests(unittest.TestCase):
                 self.assertEqual(next(it), expected)
             path = path / 'd'
 
+    @unittest.skip("python-3.13")
     def test_walk_above_recursion_limit(self):
         recursion_limit = 40
         # directory_depth > recursion_limit
@@ -3090,7 +3097,7 @@ class WalkTests(unittest.TestCase):
 
 @only_posix
 class PosixPathTest(PathTest):
-    cls = pathlib.PosixPath
+    cls = PosixUPath
 
     def test_absolute(self):
         P = self.cls
@@ -3154,6 +3161,7 @@ class PosixPathTest(PathTest):
         st = os.stat(join('masked_new_file'))
         self.assertEqual(stat.S_IMODE(st.st_mode), 0o750)
 
+    @unittest.skip("python-3.13")
     @os_helper.skip_unless_symlink
     def test_resolve_loop(self):
         # Loops with relative symlinks.
@@ -3274,7 +3282,7 @@ class PosixPathTest(PathTest):
 
 @only_nt
 class WindowsPathTest(PathTest):
-    cls = pathlib.WindowsPath
+    cls = WindowsUPath
 
     def test_absolute(self):
         P = self.cls
