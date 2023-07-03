@@ -31,13 +31,17 @@ __all__ = [
 ]
 
 
-def realpath(path, *, strict=False):
-    if strict is not False:
-        warnings.warn(
-            f"ntpath.realpath(pth) `strict` keyword is ignored on python {sys.version}",
-            stacklevel=2,
-        )
-    return _realpath(path)
+if sys.version_info >= (3, 10):
+    realpath = _realpath
+
+else:
+    def realpath(path, *, strict=False):
+        if strict is not False:
+            warnings.warn(
+                f"posixpath.realpath(pth) `strict` keyword is ignored on python {sys.version}",
+                stacklevel=2,
+            )
+        return _realpath(path)
 
 
 def splitroot(p):
