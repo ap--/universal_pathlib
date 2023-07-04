@@ -129,8 +129,8 @@ class BaseTests:
             self.path.lchmod(mode=77)
 
     def test_lstat(self):
-        with pytest.raises(NotImplementedError):
-            self.path.lstat()
+        s = self.path.joinpath("file1.txt").lstat()
+        assert hasattr(s, "st_mode")
 
     def test_mkdir(self):
         new_dir = self.path.joinpath("new_dir")
@@ -171,18 +171,18 @@ class BaseTests:
 
     def test_makedirs_exist_ok_true(self):
         new_dir = self.path.joinpath("parent", "child", "dir_may_not_exist")
-        new_dir._accessor.makedirs(new_dir, exist_ok=True)
+        new_dir.mkdir(new_dir, parents=True)
         if not self.SUPPORTS_EMPTY_DIRS:
             new_dir.joinpath(".file").touch()
-        new_dir._accessor.makedirs(new_dir, exist_ok=True)
+        new_dir.mkdir(new_dir, parents=True, exist_ok=True)
 
     def test_makedirs_exist_ok_false(self):
         new_dir = self.path.joinpath("parent", "child", "dir_may_exist")
-        new_dir._accessor.makedirs(new_dir, exist_ok=False)
+        new_dir.mkdir(new_dir, parents=True)
         if not self.SUPPORTS_EMPTY_DIRS:
             new_dir.joinpath(".file").touch()
         with pytest.raises(FileExistsError):
-            new_dir._accessor.makedirs(new_dir, exist_ok=False)
+            new_dir.mkdir(new_dir, parents=True, exist_ok=False)
 
     def test_open(self):
         pass
@@ -388,7 +388,7 @@ class BaseTests:
     def test_rmdir_not_empty(self):
         p = self.path.joinpath("folder1")
         with pytest.raises(OSError, match="not empty"):
-            p.rmdir(recursive=False)
+            p.rmdir()
 
     def test_private_url_attr_in_sync(self):
         p = self.path
