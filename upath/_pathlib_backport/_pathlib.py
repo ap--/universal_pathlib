@@ -1396,7 +1396,7 @@ class Path(PurePath):
         return self
 
 
-class PosixPath(Path, PurePosixPath):
+class PosixPath(Path, PurePosixPath, stdlib_pathlib.PosixPath):
     """Path subclass for non-Windows systems.
 
     On a POSIX system, instantiating a Path should return this object.
@@ -1408,7 +1408,7 @@ class PosixPath(Path, PurePosixPath):
             raise NotImplementedError(
                 f"cannot instantiate {cls.__name__!r} on your system")
 
-class WindowsPath(Path, PureWindowsPath):
+class WindowsPath(Path, PureWindowsPath, stdlib_pathlib.WindowsPath):
     """Path subclass for Windows systems.
 
     On a Windows system, instantiating a Path should return this object.
