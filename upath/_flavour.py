@@ -5,7 +5,7 @@ from os import PathLike
 from os import stat_result
 from typing import AnyStr
 
-import genericpath
+from fsspec import get_filesystem_class
 from fsspec.core import split_protocol
 from fsspec.utils import stringify_path
 
@@ -34,10 +34,13 @@ class fsspecpath(PathlibFlavour):
     @staticmethod
     def splitroot(path: PathLike[AnyStr]) -> tuple[AnyStr, AnyStr, AnyStr]:
         protocol, pth = split_protocol(path)
+        root_marker = get_filesystem_class(protocol).root_marker
+        if pth.startswith(root_marker):
+            pth = pth[len(root_marker) :]
         if protocol is None:
-            out = "", "file://", _ensure_str(pth)
+            out = "", f"file://{root_marker}", _ensure_str(pth)
         else:
-            out = "", f"{protocol}://", _ensure_str(pth)
+            out = "", f"{protocol}://{root_marker}", _ensure_str(pth)
         return out  # type: ignore
 
     @staticmethod
@@ -96,7 +99,7 @@ class fsspecpath(PathlibFlavour):
 
     @staticmethod
     def samestat(s1: stat_result, s2: stat_result) -> bool:
-        return genericpath.samestat(s1, s2)
+        return os.path.samestat(s1, s2)
 
     @staticmethod
     def abspath(path: PathLike[AnyStr]) -> AnyStr:
