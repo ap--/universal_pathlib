@@ -35,9 +35,12 @@ class fsspecpath(PathlibFlavour):
     def splitroot(path: PathLike[AnyStr]) -> tuple[AnyStr, AnyStr, AnyStr]:
         protocol, pth = split_protocol(path)
         root_marker = get_filesystem_class(protocol).root_marker
-        if pth.startswith(root_marker):
+        has_root = pth.startswith(root_marker)
+        if has_root:
             pth = pth[len(root_marker) :]
-        if protocol is None:
+        if protocol is None and not has_root:
+            out = "", "", _ensure_str(pth)
+        elif protocol is None and has_root:
             out = "", f"file://{root_marker}", _ensure_str(pth)
         else:
             out = "", f"{protocol}://{root_marker}", _ensure_str(pth)
