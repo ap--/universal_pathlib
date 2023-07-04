@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from upath import UPath
+from upath.tests.utils import exact_equal
 
 
 class BaseTests:
@@ -333,34 +334,20 @@ class BaseTests:
         pickled_path = pickle.dumps(path)
         recovered_path = pickle.loads(pickled_path)
 
-        assert type(path) == type(recovered_path)
-        assert str(path) == str(recovered_path)
-        assert path._drv == recovered_path._drv
-        assert path._root == recovered_path._root
-        assert path._parts == recovered_path._parts
-        assert path.fs.storage_options == recovered_path.fs.storage_options
+        assert exact_equal(path, recovered_path)
 
     def test_child_path(self):
         path_str = str(self.path).rstrip("/")
         path_a = UPath(f"{path_str}/folder")
         path_b = self.path / "folder"
 
-        assert str(path_a) == str(path_b)
-        assert path_a._root == path_b._root
-        assert path_a._drv == path_b._drv
-        assert path_a._parts == path_b._parts
-        assert path_a._url == path_b._url
+        assert exact_equal(path_a, path_b)
 
     def test_copy_path(self):
         path = self.path
         copy_path = UPath(path)
 
-        assert type(path) == type(copy_path)
-        assert str(path) == str(copy_path)
-        assert path._drv == copy_path._drv
-        assert path._root == copy_path._root
-        assert path._parts == copy_path._parts
-        assert path.fs.storage_options == copy_path.fs.storage_options
+        assert exact_equal(path, copy_path)
 
     def test_with_name(self):
         path = self.path / "file.txt"

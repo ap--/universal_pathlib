@@ -10,6 +10,7 @@ from upath.implementations.cloud import GCSPath
 from upath.implementations.cloud import S3Path
 
 from .cases import BaseTests
+from .utils import exact_equal
 from .utils import only_on_windows
 from .utils import skip_on_windows
 
@@ -158,22 +159,14 @@ def test_list_args():
     path_a = UPath("gcs://bucket", "folder")
     path_b = UPath("gcs://bucket") / "folder"
 
-    assert str(path_a) == str(path_b)
-    assert path_a._root == path_b._root
-    assert path_a._drv == path_b._drv
-    assert path_a._parts == path_b._parts
-    assert path_a._url == path_b._url
+    assert exact_equal(path_a, path_b)
 
 
 def test_child_path():
     path_a = UPath("gcs://bucket/folder")
     path_b = UPath("gcs://bucket") / "folder"
 
-    assert str(path_a) == str(path_b)
-    assert path_a._root == path_b._root
-    assert path_a._drv == path_b._drv
-    assert path_a._parts == path_b._parts
-    assert path_a._url == path_b._url
+    assert exact_equal(path_a, path_b)
 
 
 def test_pickling():
