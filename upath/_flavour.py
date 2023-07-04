@@ -136,3 +136,12 @@ class fsspecpath(PathlibFlavour):
                 return posixpath.expanduser(pth)
         else:
             return stringify_path(path)
+
+
+class FSSpecStats:
+    def __init__(self, info: dict) -> None:
+        self._info = info
+
+    @property
+    def st_mode(self):
+        return self._info["type"]
