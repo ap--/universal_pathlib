@@ -3,13 +3,12 @@ from __future__ import annotations
 import importlib
 import warnings
 from functools import lru_cache
-from pathlib import Path
 from typing import TYPE_CHECKING
 
-from fsspec.core import get_filesystem_class
+from fsspec import get_filesystem_class
 
 if TYPE_CHECKING:
-    from upath.core import PT
+    from upath.core import UPath
 
 __all__ = [
     "get_upath_class",
@@ -33,7 +32,7 @@ class _Registry:
         "webdav+https": "upath.implementations.webdav.WebdavPath",
     }
 
-    def __getitem__(self, item: str) -> type[PT] | None:
+    def __getitem__(self, item: str) -> type[UPath] | None:
         try:
             fqn = self.known_implementations[item]
         except KeyError:
@@ -47,26 +46,24 @@ _registry = _Registry()
 
 
 @lru_cache
-def get_upath_class(protocol: str) -> type[PT] | type[Path] | None:
+def get_upath_class(protocol: str) -> type[UPath]:
     """Return the upath cls for the given protocol."""
-    cls: type[PT] | None = _registry[protocol]
+    cls: type[UPath] | None = _registry[protocol]
     if cls is not None:
         return cls
+
+    try:
+        get_filesystem_class(protocol)
+    except (ImportError, ValueError):
+        raise
     else:
-        if not protocol:
-            return None  # we want to use pathlib for `None` protocol
-        try:
-            _fs_cls = get_filesystem_class(protocol)
-        except ValueError:
-            return None  # this is an unknown protocol
-        else:
-            if _fs_cls.protocol != "file":
-                warnings.warn(
-                    f"UPath {protocol!r} filesystem not explicitly implemented."
-                    " Falling back to default implementation."
-                    " This filesystem may not be tested.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            mod = importlib.import_module("upath.core")
-            return mod.UPath  # type: ignore
+        warnings.warn(
+            f"UPath {protocol!r} filesystem not explicitly implemented."
+            " Falling back to default implementation."
+            " This filesystem may not be tested.",
+            UserWarning,
+            stacklevel=2,
+        )
+        from upath.core import FSSpecUPath
+
+        return FSSpecUPath
