@@ -32,7 +32,7 @@ def exact_equal(p0: UPath, p1: UPath) -> bool:
     assert str(p0) == str(p1)
     for cls in type(p0).mro():
         for slot in getattr(cls, "__slots__", []):
-            if slot == "_raw_paths":
+            if slot in {"_raw_paths", "_cached_fs"}:
                 continue
             p0_slot = getattr(p0, slot, unset)
             p1_slot = getattr(p1, slot, unset)

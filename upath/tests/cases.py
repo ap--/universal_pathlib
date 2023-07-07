@@ -42,7 +42,7 @@ class BaseTests:
             self.path.expanduser()
 
     def test_glob(self, pathlib_base):
-        mock_glob = list(self.path.glob("**.txt"))
+        mock_glob = list(self.path.glob("**/*.txt"))
         path_glob = list(pathlib_base.glob("**/*.txt"))
 
         _mock_start = len(self.path.parts)

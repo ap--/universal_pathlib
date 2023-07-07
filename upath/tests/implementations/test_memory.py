@@ -11,7 +11,7 @@ class TestMemoryPath(BaseTests):
     def path(self, local_testdir):
         if not local_testdir.startswith("/"):
             local_testdir = "/" + local_testdir
-        path = f"memory:{local_testdir}"
+        path = f"memory:/{local_testdir}"
         self.path = UPath(path)
         self.prepare_file_system()
 
