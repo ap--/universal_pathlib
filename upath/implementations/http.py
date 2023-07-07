@@ -2,19 +2,12 @@ from __future__ import annotations
 
 from fsspec.asyn import sync
 
-import upath.core
+from upath.core import FSSpecUPath
 
 
-class _HTTPAccessor(upath.core._FSSpecAccessor):
-    def __init__(self, parsed_url, *args, **kwargs):
-        super().__init__(parsed_url, *args, **kwargs)
-
-    def _format_path(self, path):
-        return str(path)
-
-
-class HTTPPath(upath.core.UPath):
-    _default_accessor = _HTTPAccessor
+class HTTPPath(FSSpecUPath):
+    __slots__ = ()
+    # _default_accessor = _HTTPAccessor
 
     def is_dir(self):
         try:
@@ -30,27 +23,11 @@ class HTTPPath(upath.core.UPath):
 
     def _path_type(self):
         try:
-            next(self.iterdir())
+            next(iter(self.fs.ls(self.path, detail=False)))
         except (StopIteration, NotADirectoryError):
             return "file"
         else:
             return "directory"
-
-    def _sub_path(self, name):
-        """
-        `fsspec` returns the full path as `scheme://netloc/<path>` with
-        `listdir` and `glob`. However, in `iterdir` and `glob` we only want the
-        relative path to `self`.
-        """
-        complete_address = self._format_parsed_parts(
-            None, None, [self.path], url=self._url, **self._kwargs
-        )
-
-        if name.startswith(complete_address):
-            name = name[len(complete_address) :]  # noqa: E203
-        name = name.strip("/")
-
-        return name
 
     def resolve(
         self: HTTPPath, strict: bool = False, follow_redirects: bool = True
@@ -67,7 +44,7 @@ class HTTPPath(upath.core.UPath):
             else:
                 url = parsed_url.geturl()
             # Get the fsspec fs
-            fs = resolved_path._accessor._fs
+            fs = resolved_path.fs
             # Ensure we have a session
             session = sync(fs.loop, fs.set_session)
             # Use HEAD requests if the server allows it, falling back to GETs

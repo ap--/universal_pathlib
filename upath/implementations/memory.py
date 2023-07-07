@@ -1,29 +1,26 @@
 from __future__ import annotations
 
-import upath.core
+from upath.core import FSSpecUPath
+
+__all__ = ["MemoryPath"]
 
 
-class _MemoryAccessor(upath.core._FSSpecAccessor):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._fs.root_marker = ""
+class MemoryPath(FSSpecUPath):
+    __slots__ = ()
 
+    @classmethod
+    def cwd(cls):
+        raise NotImplementedError(f"unsupported for {cls.__name__}")
 
-class MemoryPath(upath.core.UPath):
-    _default_accessor = _MemoryAccessor
+    @classmethod
+    def home(cls):
+        raise NotImplementedError(f"unsupported for {cls.__name__}")
 
-    def iterdir(self):
-        """Iterate over the files in this directory.  Does not yield any
-        result for the special paths '.' and '..'.
-        """
-        for name in self._accessor.listdir(self):
-            # fsspec returns dictionaries
-            if isinstance(name, dict):
-                name = name.get("name")
-            if name in {".", ".."}:
-                # Yielding a path object for these makes little sense
-                continue
-            # only want the path name with iterdir
-            name = name.rstrip("/")
-            name = self._sub_path(name)
-            yield self._make_child_relpath(name)
+    def chmod(self, mode, *, follow_symlinks=True):
+        raise NotImplementedError(f"unsupported for {type(self).__name__}")
+
+    def expanduser(self):
+        raise NotImplementedError(f"unsupported for {type(self).__name__}")
+
+    def group(self):
+        raise NotImplementedError(f"unsupported for {type(self).__name__}")
