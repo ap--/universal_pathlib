@@ -34,7 +34,7 @@ __all__ = [
 
 
 class PureFSSpecPath(PurePath):
-    _flavour = fsspecpath
+    _flavour = fsspecpath  # type: ignore
     __slots__ = ()
 
     def relative_to(self, other, /, *, walk_up=False):
@@ -114,10 +114,7 @@ class UPath(Path):
 
     @property
     def fs(self) -> AbstractFileSystem:
-        try:
-            return self._cached_fs
-        except AttributeError:
-            raise NotImplementedError("implement in subclass")
+        raise NotImplementedError("implement in subclass")
 
     @property
     def path(self) -> str:
@@ -216,7 +213,7 @@ class FSSpecUPath(UPath, PureFSSpecPath):
     @property
     def fs(self) -> AbstractFileSystem:
         try:
-            return self._cached_fs
+            return self._cached_fs  # type: ignore
         except AttributeError:
             fs_cls = get_filesystem_class(self._protocol)
             self._cached_fs = fs = fs_cls(**self._storage_options)
