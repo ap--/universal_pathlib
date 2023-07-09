@@ -38,7 +38,10 @@ def exact_equal(p0: UPath, p1: UPath) -> bool:
             p1_slot = getattr(p1, slot, unset)
             assert p0_slot == p1_slot
 
-    assert p0.fs == p1.fs
-    assert p0.fs.storage_options == p1.fs.storage_options
+    if hasattr(p0, "_cached_fs") and hasattr(p1, "_cached_fs"):
+        assert p0.fs == p1.fs
+    elif hasattr(p0, "_protocol") and hasattr(p1, "_protocol"):
+        assert p0._protocol == p1._protocol
+        assert p0._storage_options == p1._storage_options
 
     return True

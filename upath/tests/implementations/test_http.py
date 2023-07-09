@@ -90,3 +90,63 @@ class TestUPathHttp(BaseTests):
     def test_rename2(self):
         with pytest.raises(NotImplementedError):
             return super().test_rename()
+
+
+NORMALIZATIONS = (
+    ("unnormalized", "normalized"),
+    (
+        # Expected normalization results according to curl
+        ("http://example.com", "http://example.com/"),
+        ("http://example.com/", "http://example.com/"),
+        ("http://example.com/a", "http://example.com/a"),
+        ("http://example.com//a", "http://example.com//a"),
+        ("http://example.com///a", "http://example.com///a"),
+        ("http://example.com////a", "http://example.com////a"),
+        ("http://example.com/a/.", "http://example.com/a/"),
+        ("http://example.com/a/./", "http://example.com/a/"),
+        ("http://example.com/a/./b", "http://example.com/a/b"),
+        ("http://example.com/a/.//", "http://example.com/a//"),
+        ("http://example.com/a/.//b", "http://example.com/a//b"),
+        ("http://example.com/a//.", "http://example.com/a//"),
+        ("http://example.com/a//./", "http://example.com/a//"),
+        ("http://example.com/a//./b", "http://example.com/a//b"),
+        ("http://example.com/a//.//", "http://example.com/a///"),
+        ("http://example.com/a//.//b", "http://example.com/a///b"),
+        ("http://example.com/a/..", "http://example.com/"),
+        ("http://example.com/a/../", "http://example.com/"),
+        ("http://example.com/a/../.", "http://example.com/"),
+        ("http://example.com/a/../..", "http://example.com/"),
+        ("http://example.com/a/../../", "http://example.com/"),
+        ("http://example.com/a/../..//", "http://example.com//"),
+        ("http://example.com/a/..//", "http://example.com//"),
+        ("http://example.com/a/..//.", "http://example.com//"),
+        ("http://example.com/a/..//..", "http://example.com/"),
+        ("http://example.com/a/../b", "http://example.com/b"),
+        ("http://example.com/a/..//b", "http://example.com//b"),
+        ("http://example.com/a//..", "http://example.com/a/"),
+        ("http://example.com/a//../", "http://example.com/a/"),
+        ("http://example.com/a//../.", "http://example.com/a/"),
+        ("http://example.com/a//../..", "http://example.com/"),
+        ("http://example.com/a//../../", "http://example.com/"),
+        ("http://example.com/a//../..//", "http://example.com//"),
+        ("http://example.com/a//..//..", "http://example.com/a/"),
+        ("http://example.com/a//../b", "http://example.com/a/b"),
+        ("http://example.com/a//..//", "http://example.com/a//"),
+        ("http://example.com/a//..//.", "http://example.com/a//"),
+        ("http://example.com/a//..//b", "http://example.com/a//b"),
+    ),
+)
+
+
+@pytest.mark.parametrize(*NORMALIZATIONS)
+def test_normalize(unnormalized, normalized):
+    expected = str(UPath(normalized))
+    # Normalise only, do not attempt to follow redirects for http:// paths here
+    result = str(UPath.resolve(UPath(unnormalized)))
+    assert expected == result
+
+
+def test_uri_parsing():
+    assert (
+        str(UPath("http://www.example.com//a//b/")) == "http://www.example.com//a//b/"
+    )

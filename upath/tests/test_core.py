@@ -26,13 +26,12 @@ def test_windows_path(local_testdir):
     assert isinstance(UPath(local_testdir), pathlib.WindowsPath)
 
 
-@pytest.mark.xfail(reason="refactor-fixme")
-def test_UPath_untested_protocol_warning():
+def test_UPath_untested_protocol_warning(clear_registry):
     with warnings.catch_warnings(record=True) as w:
-        _ = UPath("mock:/")
-        assert len(w) == 1
-        assert issubclass(w[-1].category, UserWarning)
-        assert "mock" in str(w[-1].message)
+        _ = UPath("mock:///")
+    assert len(w) == 1
+    assert issubclass(w[-1].category, UserWarning)
+    assert "mock" in str(w[-1].message)
 
 
 def test_UPath_file_protocol_no_warning():
@@ -90,7 +89,7 @@ def test_subclass(local_testdir):
 
 
 def test_subclass_with_gcs():
-    path = UPath("gcs://bucket", anon=True)
+    path = UPath("gcs://bucket", storage_options={"anon": True})
     assert isinstance(path, UPath)
     assert isinstance(path, pathlib.Path)
 
@@ -108,12 +107,10 @@ def test_instance_check(local_testdir):
     assert issubclass(type(upath), UPath)
 
 
-@pytest.mark.xfail(reason="obsolete")
 def test_new_method(local_testdir):
-    path = UPath.__new__(pathlib.Path, local_testdir)
-    assert str(path) == str(pathlib.Path(local_testdir))
-    assert isinstance(path, pathlib.Path)
-    assert not isinstance(path, UPath)
+    assert isinstance(pathlib.Path(local_testdir), pathlib.Path)
+    assert isinstance(UPath(local_testdir), pathlib.Path)
+    assert isinstance(UPath(local_testdir), UPath)
 
 
 @skip_on_windows
@@ -125,39 +122,32 @@ class TestFSSpecLocal(BaseTests):
 
 
 PATHS = (
-    ("path", "storage_options", "module", "object_type"),
+    ("path", "storage_options", "object_type"),
     (
-        ("/tmp/abc", (), None, pathlib.Path),
-        ("s3://bucket/folder", ({"anon": True}), "s3fs", S3Path),
-        ("gs://bucket/folder", ({"token": "anon"}), "gcsfs", GCSPath),
+        ("/tmp/abc", (), pathlib.Path),
+        ("s3://bucket/folder", ({"anon": True}), S3Path),
+        ("gs://bucket/folder", ({"token": "anon"}), GCSPath),
     ),
 )
 
 
 @pytest.mark.parametrize(*PATHS)
-def test_create_from_type(path, storage_options, module, object_type):
+def test_create_from_type(path, storage_options, object_type):
     """Test that derived paths use same fs instance."""
-    if module:
-        # skip if module cannot be imported
-        pytest.importorskip(module)
-    try:
+    if storage_options:
         upath = UPath(path, storage_options=storage_options)
-        # test expected object type
-        assert isinstance(upath, object_type)
-        cast = type(upath)
-        parent = upath.parent
-        # test derived object is same type
-        assert isinstance(parent, cast)
-        # test that created fs uses fsspec instance cache
-        assert upath.fs.protocol == parent.fs.protocol
-        assert upath.fs.storage_options == parent.fs.storage_options
-        assert upath.fs is parent.fs
-        new = cast(str(parent))
-        # test that object cast is same type
-        assert isinstance(new, cast)
-    except ImportError:
-        # fs failed to import
-        pass
+    else:
+        upath = UPath(path)
+
+    # test expected object type
+    assert isinstance(upath, object_type)
+    cast = type(upath)
+    parent = upath.parent
+    # test derived object is same type
+    assert isinstance(parent, cast)
+    new = cast(str(parent))
+    # test that object cast is same type
+    assert isinstance(new, cast)
 
 
 def test_list_args():
@@ -179,13 +169,15 @@ def test_pickling():
     pickled_path = pickle.dumps(path)
     recovered_path = pickle.loads(pickled_path)
 
-    assert type(path) == type(recovered_path)
-    assert str(path) == str(recovered_path)
-    assert path.fs.storage_options == recovered_path.fs.storage_options
+    assert exact_equal(path, recovered_path)
 
 
 def test_pickling_child_path():
-    path = UPath("gcs://bucket", anon=True) / "subfolder" / "subsubfolder"
+    path = (
+        UPath("gcs://bucket", storage_options={"anon": True})
+        / "subfolder"
+        / "subsubfolder"
+    )
     pickled_path = pickle.dumps(path)
     recovered_path = pickle.loads(pickled_path)
 
@@ -193,7 +185,7 @@ def test_pickling_child_path():
 
 
 def test_copy_path():
-    path = UPath("gcs://bucket/folder", anon=True)
+    path = UPath("gcs://bucket/folder", storage_options={"anon": True})
     copy_path = UPath(path)
 
     assert exact_equal(path, copy_path)
@@ -226,84 +218,47 @@ def test_copy_path_append():
 
 
 def test_copy_path_append_kwargs():
-    path = UPath("gcs://bucket/folder", anon=True)
-    copy_path = UPath(path, anon=False)
+    path = UPath("gcs://bucket/folder", storage_options={"anon": True})
+    copy_path = UPath(path, storage_options={"anon": False})
 
     assert type(path) == type(copy_path)
     assert str(path) == str(copy_path)
-    assert not copy_path.fs.storage_options["anon"]
-    assert path.fs.storage_options["anon"]
+    assert not copy_path._storage_options["anon"]
+    assert path._storage_options["anon"]
 
 
-def test_relative_to():
-    assert "s3://test_bucket/file.txt" == str(
-        UPath("s3://test_bucket/file.txt").relative_to(UPath("s3://test_bucket"))
-    )
+def test_relative_to_same_fs():
+    p0 = UPath("s3://test_bucket/file.txt")
+    p1 = UPath("s3://test_bucket")
+    assert "s3://test_bucket/file.txt" == str(p0.relative_to(p1))
 
+
+def test_relative_to_different_fs():
+    p0 = UPath("s3://test_bucket/file.txt")
+    p1 = UPath("gcs://test_bucket")
     with pytest.raises(ValueError):
-        UPath("s3://test_bucket/file.txt").relative_to(UPath("gcs://test_bucket"))
+        p0.relative_to(p1)
 
+
+def test_relative_to_different_storage_options():
+    p0 = UPath("s3://test_bucket/file.txt", storage_options={"anon": True})
+    p1 = UPath("s3://test_bucket/file.txt", storage_options={"anon": False})
     with pytest.raises(ValueError):
-        UPath("s3://test_bucket/file.txt", anon=True).relative_to(
-            UPath("s3://test_bucket", anon=False)
-        )
+        p0.relative_to(p1)
 
 
-def test_uri_parsing():
-    assert (
-        str(UPath("http://www.example.com//a//b/")) == "http://www.example.com//a//b/"
-    )
+def test_init_deprecated_storage_options_as_kw():
+    with pytest.deprecated_call(match="^please provide filesystem storage options"):
+        UPath("s3://test_bucket/file.txt", anon=True)
 
 
 NORMALIZATIONS = (
     ("unnormalized", "normalized"),
     (
-        # Expected normalization results according to curl
-        ("http://example.com", "http://example.com/"),
-        ("http://example.com/", "http://example.com/"),
-        ("http://example.com/a", "http://example.com/a"),
-        ("http://example.com//a", "http://example.com//a"),
-        ("http://example.com///a", "http://example.com///a"),
-        ("http://example.com////a", "http://example.com////a"),
-        ("http://example.com/a/.", "http://example.com/a/"),
-        ("http://example.com/a/./", "http://example.com/a/"),
-        ("http://example.com/a/./b", "http://example.com/a/b"),
-        ("http://example.com/a/.//", "http://example.com/a//"),
-        ("http://example.com/a/.//b", "http://example.com/a//b"),
-        ("http://example.com/a//.", "http://example.com/a//"),
-        ("http://example.com/a//./", "http://example.com/a//"),
-        ("http://example.com/a//./b", "http://example.com/a//b"),
-        ("http://example.com/a//.//", "http://example.com/a///"),
-        ("http://example.com/a//.//b", "http://example.com/a///b"),
-        ("http://example.com/a/..", "http://example.com/"),
-        ("http://example.com/a/../", "http://example.com/"),
-        ("http://example.com/a/../.", "http://example.com/"),
-        ("http://example.com/a/../..", "http://example.com/"),
-        ("http://example.com/a/../../", "http://example.com/"),
-        ("http://example.com/a/../..//", "http://example.com//"),
-        ("http://example.com/a/..//", "http://example.com//"),
-        ("http://example.com/a/..//.", "http://example.com//"),
-        ("http://example.com/a/..//..", "http://example.com/"),
-        ("http://example.com/a/../b", "http://example.com/b"),
-        ("http://example.com/a/..//b", "http://example.com//b"),
-        ("http://example.com/a//..", "http://example.com/a/"),
-        ("http://example.com/a//../", "http://example.com/a/"),
-        ("http://example.com/a//../.", "http://example.com/a/"),
-        ("http://example.com/a//../..", "http://example.com/"),
-        ("http://example.com/a//../../", "http://example.com/"),
-        ("http://example.com/a//../..//", "http://example.com//"),
-        ("http://example.com/a//..//..", "http://example.com/a/"),
-        ("http://example.com/a//../b", "http://example.com/a/b"),
-        ("http://example.com/a//..//", "http://example.com/a//"),
-        ("http://example.com/a//..//.", "http://example.com/a//"),
-        ("http://example.com/a//..//b", "http://example.com/a//b"),
-        # Normalization with and without an authority component
-        ("memory:/a/b/..", "memory:/a/"),
-        ("memory:/a/b/../..", "memory:/"),
-        ("memory:/a/b/../../..", "memory:/"),
-        ("memory://a/b/..", "memory://a/"),
-        ("memory://a/b/../..", "memory://a/"),
-        ("memory://a/b/../../..", "memory://a/"),
+        ("file:///a/b/", "file:///a/b"),
+        ("file:///a/b/..", "file:///a/"),
+        ("file:///a/b/../..", "file:///"),
+        ("file:///a/b/../../..", "file:///"),
     ),
 )
 
@@ -311,6 +266,5 @@ NORMALIZATIONS = (
 @pytest.mark.parametrize(*NORMALIZATIONS)
 def test_normalize(unnormalized, normalized):
     expected = str(UPath(normalized))
-    # Normalise only, do not attempt to follow redirects for http:// paths here
     result = str(UPath.resolve(UPath(unnormalized)))
     assert expected == result

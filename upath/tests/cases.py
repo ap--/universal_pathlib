@@ -394,5 +394,15 @@ class BaseTests:
         p = self.path
         p1 = self.path.joinpath("c")
         p2 = self.path / "c"
-        assert p1._url == p2._url
-        assert p1 != p._url
+
+        with pytest.deprecated_call(match="^UPath._url is"):
+            assert p1._url == p2._url
+            assert p1 != p._url
+
+    def test_uses_fsspec_instance_cache(self):
+        upath = self.path
+        parent = upath.parent
+        # test that created fs uses fsspec instance cache
+        assert upath.fs.protocol == parent.fs.protocol
+        assert upath.fs.storage_options == parent.fs.storage_options
+        assert upath.fs is parent.fs
