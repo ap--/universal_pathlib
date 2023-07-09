@@ -80,18 +80,35 @@ class PureFSSpecPath(PurePath):
         return type(self)(*pathsegments, **kw)
 
 
+def _get_protocol_from_args_kwargs(args, kwargs) -> str | None:
+    if args:
+        try:
+            protocol = split_protocol(args[0])[0]
+        except TypeError:
+            raise TypeError(
+                r"argument should be a str or an os.PathLike object "
+                r"where __fspath__ returns a str, not 'bytes'"
+            )
+        if protocol is not None:
+            return protocol
+    protocol = kwargs.get("protocol")
+    if protocol is not None:
+        return protocol
+    fs = kwargs.get("fs")
+    if fs is not None:
+        protocol = fs.protocol if isinstance(fs.protocol, str) else fs.protocol[0]
+        return protocol
+    return None
+
+
 class UPath(Path):
     __slots__ = ("_protocol", "_storage_options", "_cached_fs")
 
     def __new__(cls, *args, **kwargs):
         is_upath = cls is UPath
-        uses_fsspec = lambda: (  # noqa
-            (args and split_protocol(args[0])[0] is not None)
-            or kwargs.get("protocol")
-            or kwargs.get("fs")
-        )
+        protocol = _get_protocol_from_args_kwargs(args, kwargs)
 
-        if is_upath and uses_fsspec():
+        if is_upath and protocol is not None:
             return FSSpecUPath(*args, **kwargs)
 
         elif is_upath and os.name != "nt":
@@ -187,9 +204,9 @@ class FSSpecUPath(UPath, PureFSSpecPath):
         if args:
             arg0 = args[0]
             if isinstance(arg0, FSSpecUPath):
-                _p = arg0.fs.protocol
+                _p = arg0._protocol
                 protocol = _p if isinstance(_p, str) else _p[0]
-                storage_options = arg0.fs.storage_options.copy()
+                storage_options = arg0._storage_options.copy()
             else:
                 protocol = get_protocol(stringify_path(args[0]))
                 storage_options = {}

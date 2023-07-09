@@ -20,6 +20,7 @@ class _Registry:
         "abfs": "upath.implementations.cloud.AzurePath",
         "adl": "upath.implementations.cloud.AzurePath",
         "az": "upath.implementations.cloud.AzurePath",
+        "file": "upath.implementations.local.LocalPath",
         "gcs": "upath.implementations.cloud.GCSPath",
         "gs": "upath.implementations.cloud.GCSPath",
         "hdfs": "upath.implementations.hdfs.HDFSPath",
