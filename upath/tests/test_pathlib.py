@@ -35,7 +35,6 @@ from ._pathlib_test_support import TESTFN, FakePath
 # =====================================================================
 
 import pytest
-pytestmark = pytest.mark.pathlib
 
 try:
     import grp, pwd
@@ -62,7 +61,7 @@ only_posix = unittest.skipIf(os.name == 'nt',
 # Tests for the pure classes.
 #
 
-@unittest.skip("stdlib")
+@pytest.mark.pathlib_stdlib
 class PurePathTest(unittest.TestCase):
     cls = pathlib.PurePath
 
@@ -111,6 +110,7 @@ class PurePathTest(unittest.TestCase):
         p = self.cls('a')
         self.assertIs(type(p), expected)
 
+    @pytest.mark.skip(reason="Python-3.13")
     def test_different_flavours_unequal(self):
         p = self.cls('a')
         if p._flavour is posixpath:
@@ -320,7 +320,7 @@ class PurePathTest(unittest.TestCase):
                 p = self.cls(pathstr)
                 r = repr(p)
                 # The repr() roundtrips.
-                q = eval(r, pathlib.__dict__)
+                q = eval(r, pathlib.__dict__, {self.cls.__name__: self.cls})
                 self.assertIs(q.__class__, p.__class__)
                 self.assertEqual(q, p)
                 self.assertEqual(repr(q), r)
@@ -338,6 +338,7 @@ class PurePathTest(unittest.TestCase):
         self.assertNotEqual(P(), {})
         self.assertNotEqual(P(), int)
 
+    @pytest.mark.skip(reason="Python-3.13")
     def test_match_common(self):
         P = self.cls
         self.assertRaises(ValueError, P('a').match, '')
@@ -787,7 +788,7 @@ class PurePathTest(unittest.TestCase):
             self.assertEqual(str(pp), str(p))
 
 
-@unittest.skip("stdlib")
+@pytest.mark.pathlib_stdlib
 class PurePosixPathTest(PurePathTest):
     cls = pathlib.PurePosixPath
 
@@ -875,6 +876,7 @@ class PurePosixPathTest(PurePathTest):
         pp = P('//a') / '/c'
         self.assertEqual(pp, P('/c'))
 
+    @pytest.mark.skip(reason="Python-3.13")
     def test_parse_windows_path(self):
         P = self.cls
         p = P('c:', 'a', 'b')
@@ -882,7 +884,7 @@ class PurePosixPathTest(PurePathTest):
         self.assertEqual(p, pp)
 
 
-@unittest.skip("stdlib")
+@pytest.mark.pathlib_stdlib
 class PureWindowsPathTest(PurePathTest):
     cls = pathlib.PureWindowsPath
 
@@ -1558,7 +1560,7 @@ class PureWindowsPathTest(PurePathTest):
         self.assertIs(False, P('c:/NUL/con/baz').is_reserved())
 
 
-@unittest.skip("stdlib")
+@pytest.mark.pathlib_stdlib
 class PurePathSubclassTest(PurePathTest):
     class cls(pathlib.PurePath):
         pass
@@ -1568,10 +1570,12 @@ class PurePathSubclassTest(PurePathTest):
 
 
 @only_posix
+@pytest.mark.pathlib
 class PosixPathAsPureTest(PurePosixPathTest):
     cls = PosixUPath
 
 @only_nt
+@pytest.mark.pathlib
 class WindowsPathAsPureTest(PureWindowsPathTest):
     cls = WindowsUPath
 
@@ -1590,6 +1594,7 @@ class WindowsPathAsPureTest(PureWindowsPathTest):
 # Tests for the concrete classes.
 #
 
+@pytest.mark.pathlib
 class PathTest(unittest.TestCase):
     """Tests for the FS-accessing functionalities of the Path classes."""
 
@@ -1839,7 +1844,7 @@ class PathTest(unittest.TestCase):
         _check(path, "dirb/file*", True, [])
         _check(path, "dirb/file*", False, ["dirB/fileB"])
 
-    @unittest.skip("python-3.13")
+    @unittest.skip("Python-3.13")
     @os_helper.skip_unless_symlink
     def test_glob_follow_symlinks_common(self):
         def _check(path, glob, expected):
@@ -1865,7 +1870,7 @@ class PathTest(unittest.TestCase):
         _check(p, "dir*/*/../dirD/**/", ["dirC/dirD/../dirD"])
         _check(p, "*/dirD/**/", ["dirC/dirD"])
 
-    @unittest.skip("python-3.13")
+    @unittest.skip("Python-3.13")
     @os_helper.skip_unless_symlink
     def test_glob_no_follow_symlinks_common(self):
         def _check(path, glob, expected):
@@ -1931,7 +1936,7 @@ class PathTest(unittest.TestCase):
         _check(p.rglob("*.txt"), ["dirC/novel.txt"])
         _check(p.rglob("*.*"), ["dirC/novel.txt"])
 
-    @unittest.skip("python-3.13")
+    @unittest.skip("Python-3.13")
     @os_helper.skip_unless_symlink
     def test_rglob_follow_symlinks_common(self):
         def _check(path, glob, expected):
@@ -1961,7 +1966,7 @@ class PathTest(unittest.TestCase):
         _check(p, "*.txt", ["dirC/novel.txt"])
         _check(p, "*.*", ["dirC/novel.txt"])
 
-    @unittest.skip("python-3.13")
+    @unittest.skip("Python-3.13")
     @os_helper.skip_unless_symlink
     def test_rglob_no_follow_symlinks_common(self):
         def _check(path, glob, expected):
@@ -2868,6 +2873,7 @@ class PathTest(unittest.TestCase):
             self.cls(foo="bar")
 
 
+@pytest.mark.pathlib
 class WalkTests(unittest.TestCase):
 
     cls = UPath
@@ -3081,7 +3087,7 @@ class WalkTests(unittest.TestCase):
                 self.assertEqual(next(it), expected)
             path = path / 'd'
 
-    @unittest.skip("python-3.13")
+    @unittest.skip("Python-3.13")
     def test_walk_above_recursion_limit(self):
         recursion_limit = 40
         # directory_depth > recursion_limit
@@ -3096,6 +3102,7 @@ class WalkTests(unittest.TestCase):
 
 
 @only_posix
+@pytest.mark.pathlib
 class PosixPathTest(PathTest):
     cls = PosixUPath
 
@@ -3161,7 +3168,7 @@ class PosixPathTest(PathTest):
         st = os.stat(join('masked_new_file'))
         self.assertEqual(stat.S_IMODE(st.st_mode), 0o750)
 
-    @unittest.skip("python-3.13")
+    @unittest.skip("Python-3.13")
     @os_helper.skip_unless_symlink
     def test_resolve_loop(self):
         # Loops with relative symlinks.
@@ -3281,6 +3288,7 @@ class PosixPathTest(PathTest):
 
 
 @only_nt
+@pytest.mark.pathlib
 class WindowsPathTest(PathTest):
     cls = WindowsUPath
 
@@ -3399,16 +3407,15 @@ class WindowsPathTest(PathTest):
             check()
 
 
-@unittest.skip("stdlib")
 class PathSubclassTest(PathTest):
-    class cls(pathlib.Path):
+    class cls(UPath):
         pass
 
     # repr() roundtripping is not supported in custom subclass.
     test_repr_roundtrips = None
 
 
-@unittest.skip("stdlib")
+@pytest.mark.pathlib_stdlib
 class CompatiblePathTest(unittest.TestCase):
     """
     Test that a type can be made compatible with PurePath

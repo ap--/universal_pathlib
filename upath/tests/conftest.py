@@ -19,6 +19,21 @@ from fsspec.utils import stringify_path
 from .utils import posixify
 
 
+def pytest_collection_modifyitems(items, config):
+    selected = []
+    deselected = []
+    for item in items:
+        m0 = item.get_closest_marker("pathlib_stdlib")
+        m1 = item.get_closest_marker("pathlib")
+        if m0 and not m1:
+            deselected.append(item)
+        else:
+            selected.append(item)
+
+    config.hook.pytest_deselected(items=deselected)
+    items[:] = selected
+
+
 class DummyTestFS(LocalFileSystem):
     protocol = "mock"
     root_marker = "/"
