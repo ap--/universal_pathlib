@@ -48,20 +48,20 @@ class PosixUPath(PosixPath, UPath):
     del attr, func_or_attr
 
     @property
-    def fs(self):
-        try:
-            return self._cached_fs
-        except AttributeError:
-            self._cached_fs = fs = LocalFileSystem()
-            return fs
-
-    @property
     def path(self) -> str:
         return str(self)
 
-    @classmethod
-    def _from_parts(cls, args, *, url=None, **kw):
-        return super(UPath, cls)._from_parts(args)
+    @property
+    def fs(self):
+        return LocalFileSystem()
+
+    @property
+    def storage_options(self) -> dict[str, Any]:
+        return {}
+
+    @property
+    def protocol(self) -> str:
+        return ""
 
 
 class WindowsUPath(WindowsPath, UPath):
@@ -76,17 +76,17 @@ class WindowsUPath(WindowsPath, UPath):
     del attr, func_or_attr
 
     @property
-    def fs(self):
-        try:
-            return self._cached_fs
-        except AttributeError:
-            self._cached_fs = fs = LocalFileSystem()
-            return fs
-
-    @property
     def path(self) -> str:
         return str(self)
 
-    @classmethod
-    def _from_parts(cls, args, *, url=None, **kw):
-        return super(UPath, cls)._from_parts(args)
+    @property
+    def fs(self):
+        return LocalFileSystem()
+
+    @property
+    def storage_options(self) -> dict[str, Any]:
+        return {}
+
+    @property
+    def protocol(self) -> str:
+        return ""
