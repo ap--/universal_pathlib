@@ -242,8 +242,12 @@ class UPath(Path):
     def protocol(self) -> str:
         """The protocol of the fsspec filesystem"""
         try:
-            return self._url.scheme or ""
+            url = self._url
         except AttributeError:
+            return ""
+        if url:
+            return url.scheme or ""
+        else:
             return ""
 
     def _make_child(self: PT, args: list[str]) -> PT:
