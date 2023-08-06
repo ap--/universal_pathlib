@@ -63,6 +63,10 @@ class PosixUPath(PosixPath, UPath):
     def protocol(self) -> str:
         return ""
 
+    @classmethod
+    def _from_parts(cls, args, *, url=None, **kw):
+        return super(UPath, cls)._from_parts(args)
+
 
 class WindowsUPath(WindowsPath, UPath):
     __slots__ = ()
@@ -90,3 +94,7 @@ class WindowsUPath(WindowsPath, UPath):
     @property
     def protocol(self) -> str:
         return ""
+
+    @classmethod
+    def _from_parts(cls, args, *, url=None, **kw):
+        return super(UPath, cls)._from_parts(args)
