@@ -61,6 +61,29 @@ For more examples, see the [example notebook here](notebooks/examples.ipynb)
 Other fsspec-compatible filesystems may also work, but are not supported and tested.
 Contributions for new filesystems are welcome!
 
+### Additional functionality compared to pathlib
+
+The `UPath` class extends Python's `pathlib.Path` class with 4 additional attributes:
+
+- `UPath().protocol`: the fsspec protocol of your provided urlpath. "" or "file" for local paths, and "s3", "gcs", "hdfs", etc. for others.
+- `UPath().storage_options`: the fsspec storage_options you provided to the UPath constructor
+- `UPath().path`: the fsspec path (in most cases the urlpath stripped of the protocol)
+- `UPath().fs`: the corresponding fsspec file system instance
+
+The mental model you should keep of the `UPath` class can roughly be expressed like:
+
+```python
+import fsspec
+import pathlib
+from typing import Any
+
+class UPath(pathlib.Path):
+    protocol: str
+    storage_options: dict[str, Any]
+    path: str
+    fs: fsspec.AbstractFileSystem
+```
+
 ### Class hierarchy
 
 The individual `UPath` subclasses relate in the following way with `pathlib` classes:

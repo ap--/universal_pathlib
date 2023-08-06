@@ -331,3 +331,24 @@ def test_normalize(unnormalized, normalized):
     # Normalise only, do not attempt to follow redirects for http:// paths here
     result = str(UPath.resolve(UPath(unnormalized)))
     assert expected == result
+
+
+@pytest.mark.parametrize(
+    "urlpath,storage_options,protocol",
+    [
+        (os.getcwd(), {}, ""),
+        (pathlib.Path.cwd().as_uri(), {"auto_mkdir": True}, "file"),
+        ("s3://bucket/file.txt", {"anon": True}, "s3"),
+        ("gcs://bucket/file.txt", {"token": "anon"}, "gcs"),
+    ],
+)
+def test_storage_options(urlpath, storage_options, protocol):
+    pth = UPath(urlpath, **storage_options)
+    assert pth.storage_options == storage_options
+    assert pth.protocol == protocol
+
+
+def test_protocol_keyword():
+    pth = UPath("bucket/file.txt", protocol="s3")
+    assert pth.protocol == pth.fs.protocol or pth.protocol in pth.fs.protocol
+    assert pth.storage_options == {}

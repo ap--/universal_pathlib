@@ -215,6 +215,37 @@ class UPath(Path):
         else:
             raise AttributeError(item)
 
+    @property
+    def path(self) -> str:
+        """The corresponding fsspec path"""
+        if self._parts:
+            join_parts = self._parts[1:] if self._parts[0] == "/" else self._parts
+            path: str = self._flavour.join(join_parts)
+            return self._root + path
+        else:
+            return "/"
+
+    @property
+    def fs(self) -> AbstractFileSystem:
+        """The corresponding fsspec filesystem"""
+        return self._accessor._fs
+
+    @property
+    def storage_options(self) -> dict[str, Any]:
+        """The storage_options used for the fsspec filesystem"""
+        try:
+            return self._kwargs
+        except AttributeError:
+            return {}
+
+    @property
+    def protocol(self) -> str:
+        """The protocol of the fsspec filesystem"""
+        try:
+            return self._url.scheme or ""
+        except AttributeError:
+            return ""
+
     def _make_child(self: PT, args: list[str]) -> PT:
         drv, root, parts = self._parse_args(args)
         drv, root, parts = self._flavour.join_parsed_parts(
@@ -256,15 +287,6 @@ class UPath(Path):
         netloc = "//" + netloc if netloc else ""
         formatted = scheme + netloc + path
         return formatted
-
-    @property
-    def path(self) -> str:
-        if self._parts:
-            join_parts = self._parts[1:] if self._parts[0] == "/" else self._parts
-            path: str = self._flavour.join(join_parts)
-            return self._root + path
-        else:
-            return "/"
 
     def open(self, *args, **kwargs):
         return self._accessor.open(self, *args, **kwargs)
@@ -630,10 +652,6 @@ class UPath(Path):
                 **self._kwargs,
             )
             return self._str
-
-    @property
-    def fs(self) -> AbstractFileSystem:
-        return self._accessor._fs
 
     def __truediv__(self: PT, key: str | PathLike) -> PT:
         # Add `/` root if not present
