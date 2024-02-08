@@ -50,9 +50,11 @@ class BaseTests:
             "*",
             pytest.param(
                 "**/*.txt",
-                marks=pytest.mark.xfail(reason="requires fsspec>=2023.9.0")
-                if Version(fsspec_version) < Version("2023.9.0")
-                else (),
+                marks=(
+                    pytest.mark.xfail(reason="requires fsspec>=2023.9.0")
+                    if Version(fsspec_version) < Version("2023.9.0")
+                    else ()
+                ),
             ),
         ),
     )
@@ -61,7 +63,9 @@ class BaseTests:
         path_glob = list(pathlib_base.glob(pattern))
 
         _mock_start = len(self.path.parts)
-        mock_glob_normalized = sorted([a.parts[_mock_start:] for a in mock_glob])
+        mock_glob_normalized = sorted(
+            [tuple(filter(None, a.parts[_mock_start:])) for a in mock_glob]
+        )
         _path_start = len(pathlib_base.parts)
         path_glob_normalized = sorted([a.parts[_path_start:] for a in path_glob])
 
@@ -189,6 +193,7 @@ class BaseTests:
         with pytest.raises(FileExistsError):
             new_dir.mkdir(parents=True, exist_ok=False)
 
+    @pytest.mark.skip(reason="_accessor is unsupported in universal_pathlib>0.1.4")
     def test_makedirs_exist_ok_true(self):
         new_dir = self.path.joinpath("parent", "child", "dir_may_not_exist")
         new_dir._accessor.makedirs(new_dir, exist_ok=True)
@@ -196,6 +201,7 @@ class BaseTests:
             new_dir.joinpath(".file").touch()
         new_dir._accessor.makedirs(new_dir, exist_ok=True)
 
+    @pytest.mark.skip(reason="_accessor is unsupported in universal_pathlib>0.1.4")
     def test_makedirs_exist_ok_false(self):
         new_dir = self.path.joinpath("parent", "child", "dir_may_exist")
         new_dir._accessor.makedirs(new_dir, exist_ok=False)
@@ -345,7 +351,7 @@ class BaseTests:
         pickled_path = pickle.dumps(path)
         recovered_path = pickle.loads(pickled_path)
 
-        assert type(path) == type(recovered_path)
+        assert type(path) is type(recovered_path)
         assert str(path) == str(recovered_path)
         assert path.fs.storage_options == recovered_path.fs.storage_options
 
@@ -354,12 +360,13 @@ class BaseTests:
         pickled_path = pickle.dumps(path)
         recovered_path = pickle.loads(pickled_path)
 
-        assert type(path) == type(recovered_path)
+        assert type(path) is type(recovered_path)
         assert str(path) == str(recovered_path)
-        assert path._drv == recovered_path._drv
-        assert path._root == recovered_path._root
-        assert path._parts == recovered_path._parts
+        assert path.drive == recovered_path.drive
+        assert path.root == recovered_path.root
+        assert path.parts == recovered_path.parts
         assert path.fs.storage_options == recovered_path.fs.storage_options
+        assert path.storage_options == recovered_path.storage_options
 
     def test_child_path(self):
         path_str = str(self.path).rstrip("/")
@@ -367,20 +374,18 @@ class BaseTests:
         path_b = self.path / "folder"
 
         assert str(path_a) == str(path_b)
-        assert path_a._root == path_b._root
-        assert path_a._drv == path_b._drv
-        assert path_a._parts == path_b._parts
-        assert path_a._url == path_b._url
+        assert path_a.root == path_b.root
+        assert path_a.drive == path_b.drive
 
     def test_copy_path(self):
         path = self.path
         copy_path = UPath(path)
 
-        assert type(path) == type(copy_path)
+        assert type(path) is type(copy_path)
         assert str(path) == str(copy_path)
-        assert path._drv == copy_path._drv
-        assert path._root == copy_path._root
-        assert path._parts == copy_path._parts
+        assert path.drive == copy_path.drive
+        assert path.root == copy_path.root
+        assert path.parts == copy_path.parts
         assert path.fs.storage_options == copy_path.fs.storage_options
 
     def test_with_name(self):
@@ -430,6 +435,7 @@ class BaseTests:
         p2 = self.path / "c"
         assert p1._url == p2._url
         assert p1._url != p._url
+        assert p1.protocol == p2.protocol
 
     def test_as_uri(self):
         # test that we can reconstruct the path from the uri
@@ -458,3 +464,12 @@ class BaseTests:
         fs = filesystem(protocol, **storage_options)
         with fs.open(path) as f:
             assert f.read() == b"hello world"
+
+    def test_access_to_private_api(self):
+        # DO NOT access these private attributes in your code
+        p = UPath(str(self.path), **self.path.storage_options)
+        assert isinstance(p._drv, str)
+        p = UPath(str(self.path), **self.path.storage_options)
+        assert isinstance(p._root, str)
+        p = UPath(str(self.path), **self.path.storage_options)
+        assert isinstance(p._parts, (list, tuple))
