@@ -1,8 +1,18 @@
+import os
+import platform
+import sys
+
 import pytest
 
 from upath import UPath
 from upath.implementations.github import GitHubPath
 from upath.tests.cases import BaseTests
+
+pytestmark = pytest.mark.skipif(
+    os.environ.get("CI")
+    and (sys.version_info not in {(3, 8), (3, 12)} and platform.system() != "Linux"),
+    reason="Skipping GitHubPath tests to prevent rate limiting on GitHub API.",
+)
 
 
 class TestUPathGitHubPath(BaseTests):
