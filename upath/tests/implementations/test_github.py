@@ -15,7 +15,7 @@ class TestUPathGitHubPath(BaseTests):
         """
         Fixture for the UPath instance to be tested.
         """
-        path = "github://fsspec:universal_pathlib@main"
+        path = "github://ap--:universal_pathlib@test_data/data"
         self.path = UPath(path)
 
     def test_is_GitHubPath(self):
@@ -23,3 +23,39 @@ class TestUPathGitHubPath(BaseTests):
         Test that the path is a GitHubPath instance.
         """
         assert isinstance(self.path, GitHubPath)
+
+    @pytest.mark.skip(reason="GitHub filesystem is read-only")
+    def test_mkdir(self):
+        pass
+
+    @pytest.mark.skip(reason="GitHub filesystem is read-only")
+    def test_mkdir_exists_ok_false(self):
+        pass
+
+    @pytest.mark.skip(reason="GitHub filesystem is read-only")
+    def test_mkdir_parents_true_exists_ok_false(self):
+        pass
+
+    @pytest.mark.skip(reason="GitHub filesystem is read-only")
+    def test_rename(self):
+        pass
+
+    @pytest.mark.skip(reason="GitHub filesystem is read-only")
+    def test_rename2(self):
+        pass
+
+    @pytest.mark.skip(reason="GitHub filesystem is read-only")
+    def test_touch_unlink(self):
+        pass
+
+    @pytest.mark.skip(reason="GitHub filesystem is read-only")
+    def test_write_bytes(self):
+        pass
+
+    @pytest.mark.skip(reason="GitHub filesystem is read-only")
+    def test_write_text(self):
+        pass
+
+    @pytest.mark.skip(reason="GitHub filesystem is read-only")
+    def test_fsspec_compat(self):
+        pass
