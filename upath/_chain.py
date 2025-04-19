@@ -74,13 +74,34 @@ class CurrentChainSegment:
         return [*self._chain_source, self._current, *self._chain_target]
 
     @classmethod
-    def from_list(cls, segments: list[ChainSegment], index: int = -1) -> Self:
+    def from_list(cls, segments: list[ChainSegment], index: int = 0) -> Self:
         index = range(len(segments))[int(index)]
         return cls(
             segments[index],
             segments[:index],
             segments[index + 1 :],
         )
+
+    def nest(self) -> ChainSegment:
+        """return a nested target_* structure"""
+        # see: fsspec.core.url_to_fs
+        inkwargs: dict[str, Any] = {}
+        # Reverse iterate the chain, creating a nested target_* structure
+        chain = self.to_list()
+        _prev = chain[-1].path
+        for i, ch in enumerate(reversed(chain)):
+            urls, protocol, kw = ch
+            if urls is None:
+                urls = _prev
+            _prev = urls
+            if i == len(chain) - 1:
+                inkwargs = dict(**kw, **inkwargs)
+                continue
+            inkwargs["target_options"] = dict(**kw, **inkwargs)
+            inkwargs["target_protocol"] = protocol
+            inkwargs["fo"] = urls
+        urlpath, protocol, _ = chain[0]
+        return ChainSegment(urlpath, protocol, inkwargs)
 
 
 class FSSpecChainParser:
@@ -122,7 +143,8 @@ class FSSpecChainParser:
             kws = kwargs.pop(protocol, {})
             if bit is bits[0]:
                 kws.update(kwargs)
-            kw = dict(**extra_kwargs, **kws)
+            kw = dict(**extra_kwargs)
+            kw.update(kws)
             bit = cls._strip_protocol(bit)
             if (
                 protocol in {"blockcache", "filecache", "simplecache"}
@@ -178,7 +200,7 @@ if __name__ == "__main__":
     # UPath should store segments and access the path to operate on
     # through segments.current.path
     segments = CurrentChainSegment.from_list(segments=out1)
-    segments0 = segments.lshift()
+    segments0 = segments.rshift()
     assert segments0.current.protocol == "zip"
 
     # try to switch out zip path
