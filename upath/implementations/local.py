@@ -89,14 +89,14 @@ class LocalPath(_UPathMixin, pathlib.Path):
             self, *args, protocol: str | None = None, **storage_options: Any
         ) -> None:
             super(_UPathMixin, self).__init__(*args)
-            self._protocol = protocol or ""
-            self._storage_options = storage_options
+            self._chain = Chain(ChainSegment(str(self), "", {}))
 
     elif sys.version_info >= (3, 10):
 
         def __init__(
             self, *args, protocol: str | None = None, **storage_options: Any
         ) -> None:
+            super(_UPathMixin, self).__init__(*args)
             _warn_protocol_storage_options(type(self), protocol, storage_options)
             self._drv, self._root, self._parts = self._parse_args(args)  # type: ignore[attr-defined] # noqa: E501
             self._chain = Chain(ChainSegment(str(self), "", {}))
