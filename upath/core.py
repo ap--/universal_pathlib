@@ -962,7 +962,7 @@ class UPath(_UPathMixin, WritablePath, ReadablePath):
         def __new__(
             cls,
             *args: JoinablePathLike,
-            protocol: Literal["webdav"],
+            protocol: Literal["webdav", "webdav+http", "webdav+https"],
             **_: Any,
         ) -> _WebdavPath: ...
         @overload  # noqa: E301
