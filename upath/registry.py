@@ -113,6 +113,7 @@ class _Registry(MutableMapping[str, "type[upath.UPath]"]):
         "webdav+https": "upath.implementations.webdav.WebdavPath",
         "github": "upath.implementations.github.GitHubPath",
         "smb": "upath.implementations.smb.SMBPath",
+        "symlinks": "upath.implementations.symlinks.SymlinkPath",
         "zip": "upath.implementations.zip.ZipPath",
     }
 

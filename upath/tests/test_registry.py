@@ -34,6 +34,7 @@ IMPLEMENTATIONS = {
     "simplecache",
     "sftp",
     "smb",
+    "symlinks",
     "ssh",
     "webdav",
     "webdav+http",

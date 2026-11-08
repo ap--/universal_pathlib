@@ -245,7 +245,7 @@ class FSSpecChainParser:
                 flavour = WrappedFileSystemFlavour.from_protocol(proto)
                 path_bit = flavour.strip_protocol(bit)
                 extra_so = flavour.get_kwargs_from_url(bit)
-            if proto in {"blockcache", "filecache", "simplecache"}:
+            if proto in {"blockcache", "filecache", "simplecache", "symlinks"}:
                 if path_bit is not None:
                     next_path_overwrite = path_bit or "/"
                 path_bit = None
