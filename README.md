@@ -861,9 +861,9 @@ to the following public versions:
 
 ### Access to `._url`
 
-Be aware that the `._url` attribute will likely be deprecated once `UPath()` has
-support for uri fragments and uri query parameters through a public api. In case
-you are interested in contributing this functionality, please open an issue!
+Be aware that the `._url` attribute will be deprecated. Use `UPath().query` and
+`UPath().fragment` to access uri query parameters and fragments, and
+`UPath().protocol` and `UPath().path` for the other uri components.
 
 ### Calling `_from_parts`, `_parse_args`, `_format_parsed_parts`
 

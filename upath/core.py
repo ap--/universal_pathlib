@@ -45,6 +45,7 @@ from upath.types import UNSET_DEFAULT
 from upath.types import JoinablePathLike
 from upath.types import OnNameCollisionFunc
 from upath.types import PathInfo
+from upath.types import QueryLike
 from upath.types import ReadablePath
 from upath.types import ReadablePathLike
 from upath.types import StatResultType
@@ -353,6 +354,91 @@ class _UPathMixin(metaclass=_UPathMeta):
             return self.parser.strip_protocol(path)
         return self._chain.active_path
 
+    @property
+    def query(self) -> Mapping[str, str]:
+        """The decoded uri query parameters of the path.
+
+        Note
+        ----
+        Only filesystems that interpret uri query strings (currently
+        `http` and `https`) support query parameters. For all other
+        filesystems `?` is a regular path character and the mapping is
+        empty. If a parameter is repeated, the first value is returned.
+
+        Examples
+        --------
+        >>> from upath import UPath
+        >>> UPath("https://example.com/data.csv?version=2&raw").query
+        mappingproxy({'version': '2', 'raw': ''})
+        >>> UPath("memory:///data.csv?version=2").query
+        mappingproxy({})
+
+        """
+        return MappingProxyType({})
+
+    @property
+    def fragment(self) -> str:
+        """The decoded uri fragment of the path.
+
+        Note
+        ----
+        Only filesystems that interpret uri fragments (currently `http`
+        and `https`) support fragments. For all other filesystems `#` is
+        a regular path character and the fragment is an empty string.
+
+        Examples
+        --------
+        >>> from upath import UPath
+        >>> UPath("https://example.com/index.html#section%201").fragment
+        'section 1'
+
+        """
+        return ""
+
+    def with_query(
+        self,
+        query: QueryLike = None,
+        /,
+        **params: str | int | float,
+    ) -> Self:
+        """Return a new path with the uri query replaced.
+
+        The query can be provided as a mapping, a sequence of key-value
+        pairs or as keyword arguments, which will be url-encoded. A query
+        string is used verbatim. Passing no query removes the query.
+        Raises `UnsupportedOperation` for filesystems without query support.
+
+        Examples
+        --------
+        >>> from upath import UPath
+        >>> p = UPath("https://example.com/data.csv")
+        >>> p.with_query(version=2)
+        HTTPPath('https://example.com/data.csv?version=2', protocol='https')
+        >>> p.with_query([("a", "1"), ("a", "2")]).with_query()
+        HTTPPath('https://example.com/data.csv', protocol='https')
+
+        """
+        if query or params:
+            _raise_unsupported(type(self).__name__, "with_query")
+        return self
+
+    def with_fragment(self, fragment: str | None) -> Self:
+        """Return a new path with the uri fragment replaced.
+
+        Passing `None` or an empty string removes the fragment.
+        Raises `UnsupportedOperation` for filesystems without fragment support.
+
+        Examples
+        --------
+        >>> from upath import UPath
+        >>> UPath("https://example.com/index.html").with_fragment("intro")
+        HTTPPath('https://example.com/index.html#intro', protocol='https')
+
+        """
+        if fragment:
+            _raise_unsupported(type(self).__name__, "with_fragment")
+        return self
+
     def joinuri(self, uri: JoinablePathLike) -> UPath:
         """Join with urljoin behavior for UPath instances.
 
@@ -647,11 +733,19 @@ class UPath(_UPathMixin, WritablePath, ReadablePath):
         The path that a fsspec filesystem can use.
     fs :
         The cached fsspec filesystem instance for the path.
+    query :
+        The decoded uri query parameters of the path.
+    fragment :
+        The decoded uri fragment of the path.
 
     Methods
     -------
     joinuri(*parts) :
         Join URI parts to this path.
+    with_query(query=None, /, **params) :
+        Return a new path with the uri query replaced.
+    with_fragment(fragment) :
+        Return a new path with the uri fragment replaced.
 
 
     Info

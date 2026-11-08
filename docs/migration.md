@@ -252,7 +252,7 @@ Move from deprecated private attributes to public API:
 
 ### Access to `._url`
 
-The `._url` attribute will likely be deprecated once `UPath()` has support for URI fragments and query parameters through a public API. If you need this functionality, please open an issue.
+The `._url` attribute will be deprecated. Use `UPath().query` and `UPath().fragment` to access URI query parameters and fragments, and `UPath().protocol` and `UPath().path` for the other URI components.
 
 ### Custom Path Flavours
 

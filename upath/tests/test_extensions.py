@@ -263,3 +263,16 @@ def test_proxy_upath_copy_from_local(tmp_path):
     source.move(destination)
 
     assert destination.read_text() == "hello"
+
+
+def test_proxy_upath_query_and_fragment():
+    class MyProxyPath(ProxyUPath):
+        pass
+
+    pth = MyProxyPath("https://example.com/a.txt?x=1#frag")
+    assert pth.query == {"x": "1"}
+    assert pth.fragment == "frag"
+
+    new = pth.with_query(y="2").with_fragment(None)
+    assert isinstance(new, MyProxyPath)
+    assert str(new) == "https://example.com/a.txt?y=2"

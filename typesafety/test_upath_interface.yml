@@ -40,6 +40,26 @@
     # todo: this can change once fsspec is typed
     reveal_type(p.fs)  # N: Revealed type is "Any"
 
+- case: upath_special_query
+  disable_cache: false
+  main: |
+    from upath import UPath
+
+    p = UPath("abc")
+    reveal_type(p.query)  # N: Revealed type is "typing.Mapping[builtins.str, builtins.str]"
+    reveal_type(p.with_query(a="1", b=2))  # N: Revealed type is "upath.core.UPath"
+    reveal_type(p.with_query({"a": "1"}))  # N: Revealed type is "upath.core.UPath"
+    reveal_type(p.with_query("a=1"))  # N: Revealed type is "upath.core.UPath"
+
+- case: upath_special_fragment
+  disable_cache: false
+  main: |
+    from upath import UPath
+
+    p = UPath("abc")
+    reveal_type(p.fragment)  # N: Revealed type is "builtins.str"
+    reveal_type(p.with_fragment("frag"))  # N: Revealed type is "upath.core.UPath"
+
 - case: upath_special_joinuri
   disable_cache: false
   main: |

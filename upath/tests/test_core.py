@@ -8,6 +8,7 @@ from urllib.parse import SplitResult
 import pathlib_abc
 import pytest
 
+from upath import UnsupportedOperation
 from upath import UPath
 from upath.implementations.cloud import GCSPath
 from upath.implementations.cloud import S3Path
@@ -421,6 +422,31 @@ def test_query_string(uri, query_str):
     p = UPath(uri)
     assert str(p).endswith(query_str)
     assert p.path.endswith(query_str)
+
+
+@pytest.mark.parametrize(
+    "uri",
+    [
+        "memory:///folder/file?a=1#frag",
+        "file:///tmp/folder/file?a=1#frag",
+        "/tmp/folder/file?a=1#frag",
+        "s3://bucket/folder/file?a=1#frag",
+    ],
+)
+def test_query_and_fragment_unsupported(uri):
+    p = UPath(uri)
+    assert p.query == {}
+    assert p.fragment == ""
+    assert p.name == "file?a=1#frag"
+    assert p.with_query() is p
+    assert p.with_query(None) is p
+    assert p.with_fragment(None) is p
+    with pytest.raises(UnsupportedOperation):
+        p.with_query(a="1")
+    with pytest.raises(UnsupportedOperation):
+        p.with_query("a=1")
+    with pytest.raises(UnsupportedOperation):
+        p.with_fragment("frag")
 
 
 PROTOCOL_MISMATCH = [

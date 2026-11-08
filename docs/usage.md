@@ -152,6 +152,27 @@ data_dir = base / "data" / "processed"
 csv_file = data_dir / "output.csv"
 ```
 
+### How do I work with URL query parameters and fragments?
+
+For `http` and `https` paths, the query and fragment of the URL are available
+via `.query` and `.fragment`, and can be replaced with `.with_query()` and
+`.with_fragment()`. They are not part of the path's name, and are dropped when
+deriving new paths via `/`, `.joinpath()`, `.parent` or `.with_name()`:
+
+```python
+url = UPath("https://example.com/data/file.csv?version=2#L10")
+url.query     # mappingproxy({'version': '2'})
+url.fragment  # 'L10'
+url.name      # 'file.csv'
+
+url.with_query(version=3, raw="true")  # ...file.csv?version=3&raw=true#L10
+url.with_query(None).with_fragment(None)  # https://example.com/data/file.csv
+url.parent / "other.csv"  # https://example.com/data/other.csv
+```
+
+For all other filesystems `?` and `#` are regular path characters, `.query`
+is empty and `.fragment` is an empty string.
+
 ### How do I check if a file exists?
 
 Use `exists()`, `is_file()`, or `is_dir()`:

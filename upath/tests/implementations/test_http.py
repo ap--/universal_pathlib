@@ -112,7 +112,121 @@ def test_empty_parts(args, parts):
 
 def test_query_parameters_passthrough():
     pth = UPath("http://example.com/?a=1&b=2")
-    assert pth.parts == ("http://example.com/", "?a=1&b=2")
+    assert str(pth) == "http://example.com/?a=1&b=2"
+    assert pth.path == "http://example.com/?a=1&b=2"
+    assert pth.parts == ("http://example.com/", "")
+    assert pth.query == {"a": "1", "b": "2"}
+
+
+@pytest.mark.parametrize(
+    "urlpath,query,fragment",
+    [
+        ("http://example.com/a.txt", {}, ""),
+        ("http://example.com/a.txt?x=1&y=", {"x": "1", "y": ""}, ""),
+        ("http://example.com/a.txt?x=1&x=2", {"x": "1"}, ""),
+        ("http://example.com/a.txt?q=a+b%2Bc%26", {"q": "a b+c&"}, ""),
+        ("http://example.com/a.txt#sec%201", {}, "sec 1"),
+        ("https://example.com/a.txt?x=1#frag", {"x": "1"}, "frag"),
+    ],
+)
+def test_query_and_fragment(urlpath, query, fragment):
+    pth = UPath(urlpath)
+    assert pth.query == query
+    assert pth.fragment == fragment
+    assert str(pth) == urlpath
+
+
+@pytest.mark.parametrize(
+    "urlpath",
+    [
+        "http://example.com/dir/file.txt",
+        "http://example.com/dir/file.txt?x=1&y=2",
+        "http://example.com/dir/file.txt#frag",
+        "http://example.com/dir/file.txt?x=1#frag",
+    ],
+)
+def test_query_and_fragment_not_part_of_name(urlpath):
+    pth = UPath(urlpath)
+    assert pth.name == "file.txt"
+    assert pth.stem == "file"
+    assert pth.suffix == ".txt"
+    assert pth.parts == ("http://example.com/", "dir", "file.txt")
+
+
+@pytest.mark.parametrize(
+    "transform,expected",
+    [
+        (lambda p: p / "x", "http://example.com/dir/file.txt/x"),
+        (lambda p: p.joinpath("x", "y"), "http://example.com/dir/file.txt/x/y"),
+        (lambda p: p.joinpath("x?z=3"), "http://example.com/dir/file.txt/x?z=3"),
+        (lambda p: UPath(p, "x"), "http://example.com/dir/file.txt/x"),
+        (lambda p: p.parent, "http://example.com/dir"),
+        (lambda p: p.with_name("y.csv"), "http://example.com/dir/y.csv"),
+        (lambda p: p.with_stem("y"), "http://example.com/dir/y.txt"),
+        (lambda p: p.with_suffix(".csv"), "http://example.com/dir/file.csv"),
+    ],
+)
+def test_query_and_fragment_dropped_by_path_operations(transform, expected):
+    pth = UPath("http://example.com/dir/file.txt?x=1&y=2#frag")
+    assert str(transform(pth)) == expected
+
+
+def test_query_and_fragment_preserved_by_resolve():
+    pth = UPath("http://example.com/a/./b/../c?x=1#frag")
+    resolved = pth.resolve(follow_redirects=False)
+    assert str(resolved) == "http://example.com/a/c?x=1#frag"
+
+
+@pytest.mark.parametrize(
+    "query,params,expected",
+    [
+        (None, {}, "http://example.com/a.txt#frag"),
+        ("", {}, "http://example.com/a.txt#frag"),
+        ({}, {}, "http://example.com/a.txt#frag"),
+        (None, {"b": "2"}, "http://example.com/a.txt?b=2#frag"),
+        (None, {"b": 2, "c": 1.5}, "http://example.com/a.txt?b=2&c=1.5#frag"),
+        ({"q": "a b&ä"}, {}, "http://example.com/a.txt?q=a+b%26%C3%A4#frag"),
+        ([("b", "1"), ("b", "2")], {}, "http://example.com/a.txt?b=1&b=2#frag"),
+        ("sig=ab%2Fcd&b", {}, "http://example.com/a.txt?sig=ab%2Fcd&b#frag"),
+        ("?b=2", {}, "http://example.com/a.txt?b=2#frag"),
+    ],
+)
+def test_with_query(query, params, expected):
+    pth = UPath("http://example.com/a.txt?x=1#frag")
+    assert str(pth.with_query(query, **params)) == expected
+
+
+@pytest.mark.parametrize(
+    "query,params,exc",
+    [
+        ({"a": "1"}, {"b": "2"}, ValueError),
+        ("a=1#b", {}, ValueError),
+        ({"a": True}, {}, TypeError),
+        (None, {"a": None}, TypeError),
+    ],
+)
+def test_with_query_errors(query, params, exc):
+    pth = UPath("http://example.com/a.txt")
+    with pytest.raises(exc):
+        pth.with_query(query, **params)
+
+
+@pytest.mark.parametrize(
+    "fragment,expected",
+    [
+        (None, "http://example.com/a.txt?x=1"),
+        ("", "http://example.com/a.txt?x=1"),
+        ("intro", "http://example.com/a.txt?x=1#intro"),
+        ("sec 1/a?b", "http://example.com/a.txt?x=1#sec%201/a?b"),
+        ("100%", "http://example.com/a.txt?x=1#100%25"),
+    ],
+)
+def test_with_fragment(fragment, expected):
+    pth = UPath("http://example.com/a.txt?x=1#frag")
+    new = pth.with_fragment(fragment)
+    assert str(new) == expected
+    assert new.fragment == (fragment or "")
+    assert new.query == {"x": "1"}
 
 
 @pytest.mark.parametrize(

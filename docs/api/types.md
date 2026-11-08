@@ -99,6 +99,14 @@ Union of types that can be written to.
 
 Union of objects that support `__fspath__()` or `__vfspath__()` protocols.
 
+::: upath.types.QueryLike
+    options:
+        heading_level: 3
+        show_root_heading: true
+        show_root_full_path: false
+
+Union of types accepted as uri query by `UPath.with_query()`.
+
 ::: upath.types.StatResultType
     options:
         heading_level: 3

@@ -3,6 +3,8 @@ from __future__ import annotations
 import enum
 import sys
 from collections.abc import Callable
+from collections.abc import Mapping
+from collections.abc import Sequence
 from os import PathLike
 from typing import TYPE_CHECKING
 from typing import Any
@@ -32,6 +34,7 @@ __all__ = [
     "ReadablePathLike",
     "WritablePathLike",
     "SupportsPathLike",
+    "QueryLike",
     "PathInfo",
     "StatResultType",
     "PathParser",
@@ -49,6 +52,11 @@ SupportsPathLike: TypeAlias = Union[VFSPathLike, PathLike[str]]
 JoinablePathLike: TypeAlias = Union[JoinablePath, SupportsPathLike, str]
 ReadablePathLike: TypeAlias = Union[ReadablePath, SupportsPathLike, str]
 WritablePathLike: TypeAlias = Union[WritablePath, SupportsPathLike, str]
+
+_QueryValue: TypeAlias = Union[str, int, float]
+QueryLike: TypeAlias = Union[
+    str, Mapping[str, _QueryValue], Sequence[tuple[str, _QueryValue]], None
+]
 
 
 class _DefaultValue(enum.Enum):

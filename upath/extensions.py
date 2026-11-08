@@ -26,6 +26,7 @@ from upath.types import UNSET_DEFAULT
 from upath.types import JoinablePathLike
 from upath.types import OnNameCollisionFunc
 from upath.types import PathInfo
+from upath.types import QueryLike
 from upath.types import ReadablePath
 from upath.types import ReadablePathLike
 from upath.types import StatResultType
@@ -462,6 +463,25 @@ class ProxyUPath:
     @property
     def path(self) -> str:
         return self.__wrapped__.path
+
+    @property
+    def query(self) -> Mapping[str, str]:
+        return self.__wrapped__.query
+
+    @property
+    def fragment(self) -> str:
+        return self.__wrapped__.fragment
+
+    def with_query(
+        self,
+        query: QueryLike = None,
+        /,
+        **params: str | int | float,
+    ) -> Self:
+        return self._from_upath(self.__wrapped__.with_query(query, **params))
+
+    def with_fragment(self, fragment: str | None) -> Self:
+        return self._from_upath(self.__wrapped__.with_fragment(fragment))
 
     def joinuri(self, uri: JoinablePathLike) -> Self:
         return self._from_upath(self.__wrapped__.joinuri(uri))
