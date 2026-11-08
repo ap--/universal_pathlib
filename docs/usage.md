@@ -327,6 +327,9 @@ path.download("/tmp/data.csv")
 
 The key difference: `ProxyUPath` wraps a `UPath` instance and delegates to it, while keeping your custom methods separate from the core pathlib API.
 
+!!! note "Replaces `_protocol_dispatch = False`"
+    Subclassing `UPath` and setting `_protocol_dispatch = False` to get your class for all protocols is deprecated. Subclass `ProxyUPath` instead, see the [migration guide](migration.md#extending-upath-via-_protocol_dispatchfalse).
+
 
 ---
 
