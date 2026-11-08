@@ -66,7 +66,11 @@ def _fallback_fsid(protocol: str, storage_options: Mapping[str, Any]) -> str | N
 
         # Cloud object storage
         case "s3" | "s3a":
-            endpoint = opts.get("endpoint_url", "https://s3.amazonaws.com")
+            endpoint = (
+                opts.get("endpoint_url")
+                or opts.get("client_kwargs", {}).get("endpoint_url")
+                or "https://s3.amazonaws.com"
+            )
             # Normalize AWS endpoints
             from urllib.parse import urlparse
 
@@ -75,7 +79,8 @@ def _fallback_fsid(protocol: str, storage_options: Mapping[str, Any]) -> str | N
                 return "s3_aws"
             return f"s3_{tokenize(endpoint)}"
         case "gcs" | "gs":
-            return "gcs"  # Single global endpoint
+            endpoint = opts.get("endpoint_url")
+            return f"gcs_{tokenize(endpoint)}" if endpoint else "gcs"
         case "abfs" | "az":
             account = opts.get("account_name", "")
             return f"abfs_{tokenize(account)}" if account else None

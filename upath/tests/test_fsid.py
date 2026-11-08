@@ -4,7 +4,6 @@ import pytest
 
 from upath import UPath
 
-
 # --- __eq__ tests ---
 
 
@@ -48,6 +47,23 @@ def test_eq_s3_different_endpoint():
     p1 = UPath("s3://bucket/key")
     p2 = UPath("s3://bucket/key", endpoint_url="http://localhost:9000")
     assert p1 != p2
+
+
+def test_eq_s3_different_endpoint_in_client_kwargs():
+    p0 = UPath("s3://bucket/file.txt")
+    p1 = UPath(
+        "s3://bucket/file.txt",
+        client_kwargs={"endpoint_url": "http://localhost:9000"},
+    )
+    assert p0 != p1
+    assert p1 == UPath("s3://bucket/file.txt", endpoint_url="http://localhost:9000")
+
+
+def test_eq_gcs_different_endpoint():
+    p0 = UPath("gs://bucket/file.txt")
+    p1 = UPath("gs://bucket/file.txt", endpoint_url="http://localhost:4443")
+    assert p0 != p1
+    assert p0 == UPath("gs://bucket/file.txt", token="anon")
 
 
 # --- relative_to tests ---
@@ -128,7 +144,9 @@ def test_fsid_consistency_cached_vs_uncached(tmp_path):
     fsid2_still_fallback = p2.fsid
 
     # All should be equal
-    assert fsid1_before == fsid2_before == fsid1_after == fsid2_still_fallback == "local"
+    assert (
+        fsid1_before == fsid2_before == fsid1_after == fsid2_still_fallback == "local"
+    )
 
 
 def test_fallback_uses_global_config():
@@ -149,7 +167,10 @@ def test_fallback_uses_global_config():
         assert fsid_with_config.startswith("s3_")
 
         # Explicit storage_options should override global config
-        assert _fallback_fsid("s3", {"endpoint_url": "https://s3.amazonaws.com"}) == "s3_aws"
+        assert (
+            _fallback_fsid("s3", {"endpoint_url": "https://s3.amazonaws.com"})
+            == "s3_aws"
+        )
     finally:
         # Clean up
         del fsspec_conf["s3"]

@@ -30,11 +30,11 @@ from fsspec.spec import AbstractFileSystem
 from upath._chain import DEFAULT_CHAIN_PARSER
 from upath._chain import Chain
 from upath._chain import FSSpecChainParser
-from upath._fsid import _fallback_fsid
 from upath._flavour import LazyFlavourDescriptor
 from upath._flavour import WrappedFileSystemFlavour
 from upath._flavour import upath_get_kwargs_from_url
 from upath._flavour import upath_urijoin
+from upath._fsid import _fallback_fsid
 from upath._info import UPathInfo
 from upath._protocol import compatible_protocol
 from upath._protocol import get_upath_protocol
@@ -2204,7 +2204,9 @@ class UPath(_UPathMixin, WritablePath, ReadablePath):
             fsid1, fsid2 = self.fsid, other.fsid
             if fsid1 is not None and fsid2 is not None:
                 if fsid1 != fsid2:
-                    raise ValueError(f"incompatible filesystems: {fsid1!r} != {fsid2!r}")
+                    raise ValueError(
+                        f"incompatible filesystems: {fsid1!r} != {fsid2!r}"
+                    )
             elif self.storage_options != other.storage_options:
                 raise ValueError(
                     "incompatible storage_options:"
