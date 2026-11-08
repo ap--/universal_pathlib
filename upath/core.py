@@ -280,7 +280,8 @@ class _UPathMixin(metaclass=_UPathMeta):
 
         The returned `StorageOptions` mapping provides methods to convert
         the options to other formats, e.g. `to_unchained()` for use with
-        `fsspec.open`.
+        `fsspec.open` and `to_object_store()` for use with polars and
+        other tools based on the rust object_store crate.
 
         Examples
         --------

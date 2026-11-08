@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import textwrap
+import warnings
 from collections.abc import Iterator
 from collections.abc import Mapping
 from pprint import pformat
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import TypedDict
+
+from upath._object_store import to_object_store_config
 
 if TYPE_CHECKING:
     from asyncio import AbstractEventLoop
@@ -122,6 +125,8 @@ class StorageOptions(Mapping[str, Any]):
     StorageOptions({'anon': True}, protocol='s3')
     >>> p.storage_options == {"anon": True}
     True
+    >>> p.storage_options.to_object_store()
+    {'aws_skip_signature': 'true'}
 
     """
 
@@ -254,6 +259,95 @@ class StorageOptions(Mapping[str, Any]):
                 return unchained
             protocol = target_protocol
             options = dict(target_options)
+
+    def to_object_store(self, *, strict: bool = True) -> dict[str, str]:
+        """Return the storage options as an object_store configuration.
+
+        Translates the storage options of `s3fs` (protocols `s3`, `s3a`),
+        `gcsfs` (`gs`, `gcs`) and `adlfs` (`az`, `abfs`, `abfss`) to the
+        configuration keys of the rust
+        [object_store](https://docs.rs/object_store/) crate, which is used
+        by `polars`, `obstore`, `deltalake` and others. All values are
+        returned as strings. Options of local filesystems are dropped, and
+        an empty configuration is returned.
+
+        Supported conversions:
+
+        | protocol | fsspec option | object_store config key |
+        |----------|---------------|-------------------------|
+        | s3 | `key` / `username` | `aws_access_key_id` |
+        | s3 | `secret` / `password` | `aws_secret_access_key` |
+        | s3 | `token` | `aws_session_token` |
+        | s3 | `anon` | `aws_skip_signature` |
+        | s3 | `requester_pays` | `aws_request_payer` |
+        | s3 | `endpoint_url` | `aws_endpoint` |
+        | s3 | `client_kwargs["endpoint_url"]` | `aws_endpoint` |
+        | s3 | `client_kwargs["region_name"]` | `aws_region` |
+        | s3 | `client_kwargs["aws_access_key_id"]` | `aws_access_key_id` |
+        | s3 | `client_kwargs["aws_secret_access_key"]` | `aws_secret_access_key` |
+        | s3 | `client_kwargs["aws_session_token"]` | `aws_session_token` |
+        | gcs | `token="anon"` | `google_skip_signature` |
+        | gcs | `token="google_default"` | _(default behavior)_ |
+        | gcs | `token=<path to credentials file>` | `google_application_credentials` |
+        | gcs | `token=<service account info dict>` | `google_service_account_key` |
+        | gcs | `token=<access token>` | `google_bearer_token` |
+        | gcs | `endpoint_url` | `google_base_url` |
+        | az | `account_name` | `azure_storage_account_name` |
+        | az | `account_key` | `azure_storage_account_key` |
+        | az | `sas_token` | `azure_storage_sas_key` |
+        | az | `client_id` | `azure_storage_client_id` |
+        | az | `client_secret` | `azure_storage_client_secret` |
+        | az | `tenant_id` | `azure_storage_tenant_id` |
+        | az | `anon` | `azure_skip_signature` |
+        | az | `account_host` | `azure_storage_endpoint` |
+        | az | `connection_string` | account name, key, SAS, endpoint, emulator |
+
+        Endpoints using `http://` additionally set `allow_http`. Options that
+        only configure fsspec's caching or performance behavior (for example
+        `use_listings_cache`, `skip_instance_cache`, `default_block_size`,
+        `version_aware`, or gcsfs' `project`) are dropped.
+
+        Parameters
+        ----------
+        strict :
+            If True (default), raise a `ValueError` if any storage option
+            can't be converted. If False, skip unsupported options and
+            emit a `UserWarning` instead.
+
+        Raises
+        ------
+        ValueError
+            If the protocol is not supported, if options can't be converted
+            (and `strict=True`), or if options set conflicting values.
+
+        Examples
+        --------
+        >>> import polars as pl
+        >>> from upath import UPath
+        >>> p = UPath(
+        ...     "s3://bucket/data.parquet",
+        ...     key="ACCESS_KEY_ID",
+        ...     secret="SECRET_ACCESS_KEY",
+        ...     client_kwargs={"region_name": "eu-central-1"},
+        ... )
+        >>> p.storage_options.to_object_store()
+        {'aws_access_key_id': 'ACCESS_KEY_ID', 'aws_secret_access_key': 'SECRET_ACCESS_KEY', 'aws_region': 'eu-central-1'}
+        >>> df = pl.read_parquet(
+        ...     p.as_uri(), storage_options=p.storage_options.to_object_store()
+        ... )
+
+        """  # noqa: E501
+        config, unsupported = to_object_store_config(self._protocol, self._options)
+        if unsupported:
+            names = ", ".join(map(repr, unsupported))
+            msg = (
+                f"cannot convert storage option(s) {names} for protocol"
+                f" {self._protocol!r} to an object_store config"
+            )
+            if strict:
+                raise ValueError(f"{msg}. Pass strict=False to skip them.")
+            warnings.warn(f"{msg}, skipping.", UserWarning, stacklevel=2)
+        return config
 
 
 class _AbstractStorageOptions(TypedDict, total=False):

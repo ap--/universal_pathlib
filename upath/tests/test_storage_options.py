@@ -1,6 +1,8 @@
 import copy
 import io
+import json
 import pickle
+import warnings
 import zipfile
 from collections.abc import Mapping
 
@@ -425,3 +427,310 @@ def test_to_unchained_repeated_protocol_with_options():
     )
     with pytest.raises(ValueError, match="'zip' appears multiple times"):
         so.to_unchained()
+
+
+# === to_object_store =================================================
+
+
+@pytest.mark.parametrize(
+    "urlpath,storage_options,expected",
+    [
+        # --- s3fs ---
+        ("s3://bucket/key", {}, {}),
+        ("s3://bucket/key", {"anon": True}, {"aws_skip_signature": "true"}),
+        ("s3://bucket/key", {"anon": False}, {"aws_skip_signature": "false"}),
+        (
+            "s3://bucket/key",
+            {"key": "AKID", "secret": "SECRET", "token": "TOKEN"},
+            {
+                "aws_access_key_id": "AKID",
+                "aws_secret_access_key": "SECRET",
+                "aws_session_token": "TOKEN",
+            },
+        ),
+        (
+            "s3a://bucket/key",
+            {"username": "AKID", "password": "SECRET"},
+            {"aws_access_key_id": "AKID", "aws_secret_access_key": "SECRET"},
+        ),
+        (
+            "s3://bucket/key",
+            {"endpoint_url": "https://s3.example.com"},
+            {"aws_endpoint": "https://s3.example.com"},
+        ),
+        (
+            "s3://bucket/key",
+            {"endpoint_url": "http://localhost:9000"},
+            {"aws_endpoint": "http://localhost:9000", "allow_http": "true"},
+        ),
+        (
+            "s3://bucket/key",
+            {
+                "client_kwargs": {
+                    "endpoint_url": "http://localhost:9000",
+                    "region_name": "eu-central-1",
+                },
+            },
+            {
+                "aws_endpoint": "http://localhost:9000",
+                "allow_http": "true",
+                "aws_region": "eu-central-1",
+            },
+        ),
+        (
+            "s3://bucket/key",
+            {
+                "client_kwargs": {
+                    "aws_access_key_id": "AKID",
+                    "aws_secret_access_key": "SECRET",
+                    "aws_session_token": "TOKEN",
+                },
+            },
+            {
+                "aws_access_key_id": "AKID",
+                "aws_secret_access_key": "SECRET",
+                "aws_session_token": "TOKEN",
+            },
+        ),
+        (
+            "s3://bucket/key",
+            {"key": "AKID", "client_kwargs": {"aws_access_key_id": "AKID"}},
+            {"aws_access_key_id": "AKID"},
+        ),
+        ("s3://bucket/key", {"requester_pays": True}, {"aws_request_payer": "true"}),
+        (
+            "s3://bucket/key",
+            {
+                "use_listings_cache": False,
+                "skip_instance_cache": True,
+                "default_block_size": 1024,
+                "default_cache_type": "none",
+                "version_aware": True,
+                "key": None,
+            },
+            {},
+        ),
+        # --- gcsfs ---
+        ("gs://bucket/key", {}, {}),
+        ("gs://bucket/key", {"token": "anon"}, {"google_skip_signature": "true"}),
+        ("gcs://bucket/key", {"token": "google_default", "project": "p"}, {}),
+        ("gs://bucket/key", {"token": None}, {}),
+        (
+            "gs://bucket/key",
+            {"token": "ya29.access-token"},
+            {"google_bearer_token": "ya29.access-token"},
+        ),
+        (
+            "gs://bucket/key",
+            {"endpoint_url": "http://localhost:4443"},
+            {"google_base_url": "http://localhost:4443", "allow_http": "true"},
+        ),
+        # --- adlfs ---
+        ("az://container/key", {}, {}),
+        (
+            "az://container/key",
+            {"account_name": "acct", "account_key": "KEY"},
+            {
+                "azure_storage_account_name": "acct",
+                "azure_storage_account_key": "KEY",
+            },
+        ),
+        (
+            "abfss://container@acct.dfs.core.windows.net/key",
+            {"sas_token": "?sv=2020&sig=abc"},
+            {
+                "azure_storage_account_name": "acct",
+                "azure_storage_sas_key": "?sv=2020&sig=abc",
+            },
+        ),
+        (
+            "abfs://container/key",
+            {
+                "account_name": "acct",
+                "tenant_id": "tenant",
+                "client_id": "client",
+                "client_secret": "secret",
+            },
+            {
+                "azure_storage_account_name": "acct",
+                "azure_storage_tenant_id": "tenant",
+                "azure_storage_client_id": "client",
+                "azure_storage_client_secret": "secret",
+            },
+        ),
+        (
+            "az://container/key",
+            {"account_name": "acct", "anon": True},
+            {"azure_storage_account_name": "acct", "azure_skip_signature": "true"},
+        ),
+        (
+            "az://container/key",
+            {"account_name": "acct", "account_host": "acct.blob.example.com"},
+            {
+                "azure_storage_account_name": "acct",
+                "azure_storage_endpoint": "https://acct.blob.example.com",
+            },
+        ),
+        (
+            "az://container/key",
+            {
+                "connection_string": (
+                    "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;"
+                    "AccountKey=a2V5==;"
+                    "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+                    "QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;"
+                ),
+            },
+            {
+                "azure_storage_account_name": "devstoreaccount1",
+                "azure_storage_account_key": "a2V5==",
+                "azure_storage_endpoint": "http://127.0.0.1:10000/devstoreaccount1",
+                "allow_http": "true",
+            },
+        ),
+        (
+            "az://container/key",
+            {
+                "connection_string": (
+                    "DefaultEndpointsProtocol=https;AccountName=acct;"
+                    "SharedAccessSignature=sv=2020&sig=abc;"
+                    "EndpointSuffix=core.chinacloudapi.cn"
+                ),
+            },
+            {
+                "azure_storage_account_name": "acct",
+                "azure_storage_sas_key": "sv=2020&sig=abc",
+                "azure_storage_endpoint": "https://acct.blob.core.chinacloudapi.cn",
+            },
+        ),
+        (
+            "az://container/key",
+            {"connection_string": "UseDevelopmentStorage=true"},
+            {"azure_storage_use_emulator": "true"},
+        ),
+        # --- local ---
+        ("file:///tmp/file.txt", {"auto_mkdir": True}, {}),
+    ],
+)
+def test_to_object_store(urlpath, storage_options, expected):
+    p = UPath(urlpath, **storage_options)
+    config = p.storage_options.to_object_store()
+    assert config == expected
+    assert all(isinstance(v, str) for v in config.values())
+
+
+def test_to_object_store_local_path(tmp_path):
+    assert UPath(tmp_path).storage_options.to_object_store() == {}
+
+
+def test_to_object_store_gcs_token_file(tmp_path):
+    token_file = tmp_path.joinpath("credentials.json")
+    token_file.write_text('{"type": "authorized_user"}')
+    p = UPath("gs://bucket/key", token=str(token_file))
+    assert p.storage_options.to_object_store() == {
+        "google_application_credentials": str(token_file),
+    }
+
+
+def test_to_object_store_gcs_service_account_info():
+    info = {
+        "type": "service_account",
+        "client_email": "name@project.iam.gserviceaccount.com",
+        "private_key": "-----BEGIN PRIVATE KEY-----\n...",
+    }
+    p = UPath("gs://bucket/key", token=info)
+    config = p.storage_options.to_object_store()
+    assert list(config) == ["google_service_account_key"]
+    assert json.loads(config["google_service_account_key"]) == info
+
+
+@pytest.mark.parametrize(
+    "urlpath",
+    [
+        "memory:///a/b",
+        "simplecache::s3://bucket/key",
+        "zip://file.txt::s3://bucket/archive.zip",
+        "https://example.com/file.txt",
+    ],
+)
+def test_to_object_store_unsupported_protocol(urlpath):
+    so = UPath(urlpath).storage_options
+    with pytest.raises(ValueError, match=f"protocol {so.protocol!r}"):
+        so.to_object_store()
+
+
+@pytest.mark.parametrize(
+    "urlpath,storage_options,unsupported",
+    [
+        ("s3://bucket/key", {"profile": "default"}, "'profile'"),
+        (
+            "s3://bucket/key",
+            {"client_kwargs": {"verify": False}},
+            "'client_kwargs.verify'",
+        ),
+        ("s3://bucket/key", {"config_kwargs": {"retries": {}}}, "'config_kwargs'"),
+        ("s3://bucket/key", {"key": 1234}, "'key'"),
+        ("gs://bucket/key", {"token": "cloud"}, "'token'"),
+        ("gs://bucket/key", {"token": object()}, "'token'"),
+        ("gs://bucket/key", {"token": {"refresh_token": "x"}}, "'token'"),
+        ("gs://bucket/key", {"requester_pays": True}, "'requester_pays'"),
+        ("az://container/key", {"credential": "xyz"}, "'credential'"),
+        (
+            "az://container/key",
+            {"connection_string": "AccountName=a;Unknown=b"},
+            "'connection_string\\[UNKNOWN\\]'",
+        ),
+        ("file:///tmp/file.txt", {"something": 1}, "'something'"),
+    ],
+)
+def test_to_object_store_unsupported_options(urlpath, storage_options, unsupported):
+    so = UPath(urlpath, **storage_options).storage_options
+    with pytest.raises(ValueError, match=unsupported):
+        so.to_object_store()
+
+
+def test_to_object_store_non_strict():
+    p = UPath(
+        "s3://bucket/key",
+        anon=True,
+        profile="default",
+        client_kwargs={"verify": False, "region_name": "us-east-1"},
+    )
+    with pytest.warns(UserWarning, match="'profile', 'client_kwargs.verify'") as w:
+        config = p.storage_options.to_object_store(strict=False)
+    assert w[0].filename == __file__
+    assert config == {"aws_skip_signature": "true", "aws_region": "us-east-1"}
+
+
+def test_to_object_store_strict_does_not_warn():
+    p = UPath("s3://bucket/key", anon=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert p.storage_options.to_object_store(strict=False) == {
+            "aws_skip_signature": "true"
+        }
+
+
+@pytest.mark.parametrize(
+    "urlpath,storage_options",
+    [
+        ("s3://bucket/key", {"key": "A", "client_kwargs": {"aws_access_key_id": "B"}}),
+        (
+            "s3://bucket/key",
+            {
+                "endpoint_url": "https://a.example.com",
+                "client_kwargs": {"endpoint_url": "https://b.example.com"},
+            },
+        ),
+        (
+            "az://container/key",
+            {"account_name": "a", "connection_string": "AccountName=b"},
+        ),
+    ],
+)
+def test_to_object_store_conflicting_options(urlpath, storage_options):
+    so = UPath(urlpath, **storage_options).storage_options
+    with pytest.raises(ValueError, match="conflicting values") as e:
+        so.to_object_store()
+    # values are not part of the error message
+    assert "'A'" not in str(e.value) and "'B'" not in str(e.value)
