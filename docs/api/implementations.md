@@ -284,6 +284,36 @@ Local caching wrapper for remote filesystems.
 
 ---
 
+## upath.implementations.symlinks
+
+::: upath.implementations.symlinks.SymlinkPath
+    options:
+        heading_level: 3
+        show_root_heading: true
+        show_root_full_path: false
+        members: []
+        show_bases: true
+
+**Protocol:** `symlinks::<target-url>`
+
+Experimental: emulated symlinks on top of filesystems without symlink support.
+Links are provided as a `{link_path: target}` mapping and are resolved
+in the `symlinks` filesystem layer:
+
+```python
+from upath import UPath
+
+p = UPath("symlinks::memory://data/latest", mapping={"/data/latest": "v2"})
+p.is_symlink()  # True
+p.readlink()  # relative SymlinkPath 'v2'
+p.resolve()  # SymlinkPath('/data/v2', protocol='symlinks')
+```
+
+Targets starting with `/` (or containing `://`) are absolute target filesystem
+paths, all other targets are relative to the link's parent directory.
+
+---
+
 ## See Also :link:
 
 - [UPath](index.md) - Main UPath class documentation
