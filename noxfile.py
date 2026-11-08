@@ -16,7 +16,7 @@ nox.options.sessions = "lint", "tests", "type-checking", "type-safety"
 locations = ("upath",)
 running_in_ci = os.environ.get("CI", "") != ""
 
-SUPPORTED_PYTHONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
+SUPPORTED_PYTHONS = ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
 BASE_PYTHON = SUPPORTED_PYTHONS[-3]
 MIN_PYTHON = SUPPORTED_PYTHONS[0]
 

@@ -55,7 +55,7 @@ When adding `universal-pathlib` to your project, specify the filesystem extras y
 ```toml
 [project]
 name = "myproject"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "universal_pathlib>=0.3.10",
     "fsspec[s3,http]",  # Add the filesystems you need

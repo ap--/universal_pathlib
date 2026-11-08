@@ -124,24 +124,10 @@ class TestProxyPathlibPath(BaseTests, metaclass=OverrideMeta):
     def test_as_uri(self):
         assert self.path.as_uri().startswith("file://")
 
-    if sys.version_info < (3, 10):
-
-        @overrides_base
-        def test_lstat(self):
-            # On Python < 3.10, stat(follow_symlinks=False) triggers warnings
-            with pytest.warns(
-                UserWarning,
-                match=r".*stat\(\) follow_symlinks=False is currently ignored",
-            ):
-                st = self.path.lstat()
-            assert st is not None
-
-    else:
-
-        @overrides_base
-        def test_lstat(self):
-            st = self.path.lstat()
-            assert st is not None
+    @overrides_base
+    def test_lstat(self):
+        st = self.path.lstat()
+        assert st is not None
 
     @overrides_base
     def test_relative_to(self):

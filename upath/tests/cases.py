@@ -1,7 +1,6 @@
 import os
 import pickle
 import stat
-import sys
 import warnings
 from pathlib import Path
 
@@ -99,8 +98,6 @@ class JoinablePathTests:
         assert path.suffixes == [".tar", ".gz"]
 
     def test_with_stem(self):
-        if sys.version_info < (3, 9):
-            pytest.skip("with_stem only available on py3.9+")
         path = self.path / "file.txt"
         path = path.with_stem("document")
         assert path.stem == "document"

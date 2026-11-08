@@ -5,11 +5,11 @@ import pathlib
 import shutil
 import sys
 import warnings
+from collections.abc import Callable
 from collections.abc import Iterator
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Callable
 from typing import Literal
 from typing import overload
 from urllib.parse import SplitResult
@@ -29,8 +29,6 @@ from upath.types import UNSET_DEFAULT
 from upath.types import JoinablePathLike
 from upath.types import PathInfo
 from upath.types import ReadablePath
-from upath.types import ReadablePathLike
-from upath.types import StatResultType
 from upath.types import SupportsPathLike
 from upath.types import WritablePath
 from upath.types import WritablePathLike
@@ -163,7 +161,7 @@ class LocalPath(_UPathMixin, pathlib.Path):
             self._chain = Chain(ChainSegment(str(self), "", storage_options))
             self._chain_parser = chain_parser
 
-    elif sys.version_info >= (3, 10):
+    else:
 
         def __init__(
             self,
@@ -189,24 +187,6 @@ class LocalPath(_UPathMixin, pathlib.Path):
             obj = super()._from_parsed_parts(drv, root, parts)
             obj._chain = Chain(ChainSegment(str(obj), "", {}))
             return obj
-
-    else:
-
-        def __init__(
-            self,
-            *args,
-            protocol: str | None = None,
-            chain_parser: FSSpecChainParser = DEFAULT_CHAIN_PARSER,
-            **storage_options: Any,
-        ) -> None:
-            _warn_protocol_storage_options(type(self), protocol, storage_options)
-            self._drv, self._root, self._parts = self._parse_args(args)  # type: ignore[attr-defined] # noqa: E501
-            self._init()
-            self._chain_parser = chain_parser
-
-        def _init(self, **kwargs: Any) -> None:
-            super()._init(**kwargs)  # type: ignore[misc]
-            self._chain = Chain(ChainSegment(str(self), "", {}))
 
     def __vfspath__(self) -> str:
         return self.__fspath__()
@@ -707,68 +687,6 @@ class LocalPath(_UPathMixin, pathlib.Path):
                     stacklevel=2,
                 )
             return super().relative_to(other, *_deprecated)
-
-    if sys.version_info < (3, 10):
-
-        def hardlink_to(self, target: ReadablePathLike) -> None:
-            try:
-                os.link(os.fspath(target), os.fspath(self))  # type: ignore[arg-type]
-            except AttributeError:
-                raise UnsupportedOperation("hardlink operation not supported")
-
-        # let's skip this one as backporting it breaks one pathlib test
-        # @property
-        # def parents(self) -> Sequence[Self]:
-        #     return list(super().parents)
-
-        def stat(  # type: ignore[override]
-            self,
-            *,
-            follow_symlinks: bool = True,
-        ) -> StatResultType:
-            if not follow_symlinks:
-                warnings.warn(
-                    f"{type(self).__name__}.stat() follow_symlinks=False"
-                    " is currently ignored.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            return super().stat()  # type: ignore[return-value]
-
-        def write_text(
-            self,
-            data: str,
-            encoding: str | None = None,
-            errors: str | None = None,
-            newline: str | None = None,
-        ) -> int:
-            if newline is not None:
-                warnings.warn(
-                    f"{type(self).__name__}.write_text() newline"
-                    " is currently ignored.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            return super().write_text(
-                data,
-                encoding=encoding,
-                errors=errors,
-            )
-
-        def chmod(
-            self,
-            mode: int,
-            *,
-            follow_symlinks: bool = True,
-        ) -> None:
-            if not follow_symlinks:
-                warnings.warn(
-                    f"{type(self).__name__}.chmod() follow_symlinks=False"
-                    " is currently ignored.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            return super().chmod(mode)
 
     @classmethod
     def __get_pydantic_core_schema__(

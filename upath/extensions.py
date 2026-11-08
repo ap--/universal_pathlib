@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from collections.abc import Iterator
 from collections.abc import Mapping
 from collections.abc import Sequence
@@ -8,7 +9,6 @@ from typing import IO
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import BinaryIO
-from typing import Callable
 from typing import Literal
 from typing import TextIO
 from typing import TypeVar

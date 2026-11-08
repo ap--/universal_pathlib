@@ -126,7 +126,7 @@ flowchart TB
 
 ### Key Differences
 
-**Current State (Python 3.9-3.13):**
+**Current State (Python 3.10-3.15):**
 
 ```python
 from pathlib import Path

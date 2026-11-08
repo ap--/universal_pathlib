@@ -120,10 +120,7 @@ class _Registry(MutableMapping[str, "type[upath.UPath]"]):
         _m: MutableMapping[str, str | type[upath.UPath]]
 
     def __init__(self) -> None:
-        if sys.version_info >= (3, 10):
-            eps = entry_points(group=_ENTRY_POINT_GROUP)
-        else:
-            eps = entry_points().get(_ENTRY_POINT_GROUP, [])
+        eps = entry_points(group=_ENTRY_POINT_GROUP)
         self._entries = {ep.name: ep for ep in eps}
         self._m = ChainMap({}, self.known_implementations)  # type: ignore
 

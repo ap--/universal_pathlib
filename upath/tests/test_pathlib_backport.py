@@ -50,12 +50,7 @@ def pth_file(pth):
 @pytest.mark.parametrize(
     "pth",
     [
-        pytest.param(
-            "",
-            marks=pytest.mark.xfail(
-                sys.version_info < (3, 10), reason="parents getitem differs"
-            ),
-        ),
+        "",
         "file",
         "memory",
     ],
@@ -73,17 +68,7 @@ def test_signature_stat_follow_symlinks(pth_file):
 @pytest.mark.parametrize(
     "pth,ctx",
     [
-        (
-            "",
-            (
-                pytest.warns(
-                    UserWarning,
-                    match=r".*write_text\(\) newline is currently ignored",
-                )
-                if sys.version_info < (3, 10)
-                else nullcontext()
-            ),
-        ),
+        ("", nullcontext()),
         ("file", nullcontext()),
         ("memory", nullcontext()),
     ],

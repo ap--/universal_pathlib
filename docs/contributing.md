@@ -164,7 +164,7 @@ Ready to contribute code? Here's how to set up your development environment.
 
 You'll need:
 
-- **Python 3.9 or higher**
+- **Python 3.10 or higher**
 - **Git** - For version control
 - **nox** - For running tests and other tasks
 

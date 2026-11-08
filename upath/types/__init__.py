@@ -18,11 +18,7 @@ from upath.types._abc import ReadablePath
 from upath.types._abc import WritablePath
 
 if TYPE_CHECKING:
-
-    if sys.version_info >= (3, 12):
-        from typing import TypeAlias
-    else:
-        from typing_extensions import TypeAlias
+    from typing import TypeAlias
 
 __all__ = [
     "JoinablePath",
