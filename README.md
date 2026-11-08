@@ -605,6 +605,32 @@ class MyProtoPath(UPath):
         return args, protocol, storage_options
 ```
 
+#### Path parsing
+
+How a UPath subclass splits and joins its paths is defined by its `parser`.
+By default, it is derived from the fsspec filesystem registered for the
+protocol. If your filesystem should parse paths like another filesystem,
+for example an object store where the bucket is the anchor of the path,
+set a custom parser using `upath.parsers.FSSpecParser` _(experimental)_:
+
+```python
+from upath.implementations.cloud import S3Path
+from upath.parsers import FSSpecParser
+
+class MyProtoPath(S3Path):
+    # parse "myproto://bucket/key" uris like "s3://bucket/key"
+    parser = FSSpecParser("s3", protocol="myproto")
+
+class MyOtherProtoPath(S3Path):
+    # or build the parser from your filesystem class
+    parser = FSSpecParser(
+        MyOtherProtoFileSystem,
+        root_marker="",
+        netloc_is_anchor=True,
+        supports_empty_parts=True,
+    )
+```
+
 #### Extending UPath's API interface
 
 If you want to extend the class API
