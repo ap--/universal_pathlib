@@ -57,6 +57,8 @@ def test_local_from_uri_roundtrip(tmp_path, name):
     uri = pth.as_uri()
     assert type(pth).from_uri(uri) == pth
     assert type(type(pth).from_uri(uri)) is type(pth)
+    assert UPath.from_uri(uri) == pth
+    assert type(UPath.from_uri(uri)) is type(pth)
 
 
 @pytest.mark.parametrize("uri", ["s3://bucket/file.txt", "file:relative/file.txt"])
@@ -76,6 +78,7 @@ def test_local_from_uri_unc_paths(uri):
     pth = WindowsUPath.from_uri(uri)
     assert pth == WindowsUPath(r"\\server\share\file.txt")
     assert WindowsUPath.from_uri(pth.as_uri()) == pth
+    assert UPath.from_uri(pth.as_uri()) == pth
 
 
 @pytest.mark.parametrize(

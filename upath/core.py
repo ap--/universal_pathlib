@@ -2058,6 +2058,21 @@ class UPath(_UPathMixin, WritablePath, ReadablePath):
 
     @classmethod
     def from_uri(cls, uri: str, **storage_options: Any) -> Self:
+        """Return a new path from the given URI.
+
+        Info
+        ----
+        Like `pathlib.Path.from_uri()`, `UPath.from_uri()` parses `file:` URIs
+        according to RFC 8089 and returns a local `PosixUPath` or `WindowsUPath`,
+        so that `UPath.from_uri(p.as_uri()) == p` for local paths. Use
+        `UPath(urlpath)` to get a fsspec based `FilePath` from a `file://` urlpath.
+        """
+        if cls is UPath and uri.startswith("file:"):
+            local_cls: Any = get_upath_class("")
+            pth = local_cls.from_uri(uri)
+            if storage_options:
+                pth = local_cls(pth, **storage_options)
+            return pth
         return cls(uri, **storage_options)
 
     def as_uri(self) -> str:
