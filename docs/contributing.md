@@ -267,9 +267,13 @@ This runs:
 ### Type Checking
 
 ```bash
-nox --session=type_checking
-nox --session=typesafety
+nox --session=type-checking
+nox --session=type-safety
+nox --session=type-narrowing
 ```
+
+The `type-narrowing` session checks `typesafety/check_constructors.py` with mypy,
+pyright and ty, to make sure all of them infer the same types for `UPath(...)`.
 
 !!! tip "Pre-commit Hooks"
     Consider setting up pre-commit hooks to automatically check your code:
