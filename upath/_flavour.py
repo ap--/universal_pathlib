@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import inspect
 import os.path
 import posixpath
 import sys
+import types
 import warnings
 from collections.abc import Mapping
+from functools import cached_property
 from functools import lru_cache
 from typing import TYPE_CHECKING
 from typing import Any
@@ -12,6 +15,7 @@ from typing import TypedDict
 from urllib.parse import SplitResult
 from urllib.parse import urlsplit
 
+from fsspec.registry import get_filesystem_class
 from fsspec.registry import known_implementations
 from fsspec.registry import registry as _class_registry
 from fsspec.spec import AbstractFileSystem
@@ -33,6 +37,7 @@ if TYPE_CHECKING:
     from upath.core import UPath
 
 __all__ = [
+    "FSSpecParser",
     "LazyFlavourDescriptor",
     "default_flavour",
     "upath_urijoin",
@@ -79,141 +84,294 @@ class ProtocolConfig(TypedDict):
     root_marker_override: dict[str, str]
 
 
-class WrappedFileSystemFlavour(UPathParser):  # (pathlib_abc.FlavourBase)
-    """flavour class for universal_pathlib
+# Note:
+#   It would be ideal if there would be a way to avoid the need for
+#   indicating the following settings via the protocol. This is a
+#   workaround to be able to implement the flavour correctly.
+# TODO:
+#   These settings should be configured on the UPath class?!?
+_PROTOCOL_CONFIG: ProtocolConfig = {
+    "netloc_is_anchor": {
+        "http",
+        "https",
+        "s3",
+        "s3a",
+        "smb",
+        "gs",
+        "gcs",
+        "az",
+        "adl",
+        "abfs",
+        "abfss",
+    },
+    "supports_empty_parts": {
+        "http",
+        "https",
+        "s3",
+        "s3a",
+        "gs",
+        "gcs",
+        "az",
+        "adl",
+        "abfs",
+    },
+    "meaningful_trailing_slash": {
+        "http",
+        "https",
+    },
+    "root_marker_override": {
+        "smb": "/",
+        "ssh": "/",
+        "sftp": "/",
+    },
+}
 
-    **INTERNAL AND VERY MUCH EXPERIMENTAL**
+_PARSING_METHODS = ("_strip_protocol", "_get_kwargs_from_urls", "_parent")
 
-    Implements the fsspec compatible low-level lexical operations on
-    PurePathBase-like objects.
 
-    Note:
-        In case you find yourself in need of subclassing this class,
-        please open an issue in the universal_pathlib issue tracker:
-        https://github.com/fsspec/universal_pathlib/issues
-        Ideally we can find a way to make your use-case work by adding
-        more functionality to this class.
-
-    """
-
-    # Note:
-    #   It would be ideal if there would be a way to avoid the need for
-    #   indicating the following settings via the protocol. This is a
-    #   workaround to be able to implement the flavour correctly.
-    # TODO:
-    #   These settings should be configured on the UPath class?!?
-    protocol_config: ProtocolConfig = {
-        "netloc_is_anchor": {
-            "http",
-            "https",
-            "s3",
-            "s3a",
-            "smb",
-            "gs",
-            "gcs",
-            "az",
-            "adl",
-            "abfs",
-            "abfss",
-        },
-        "supports_empty_parts": {
-            "http",
-            "https",
-            "s3",
-            "s3a",
-            "gs",
-            "gcs",
-            "az",
-            "adl",
-            "abfs",
-        },
-        "meaningful_trailing_slash": {
-            "http",
-            "https",
-        },
-        "root_marker_override": {
-            "smb": "/",
-            "ssh": "/",
-            "sftp": "/",
-        },
+def _protocol_defaults(protocols: tuple[str, ...]) -> dict[str, Any]:
+    """return the default parser options for the given protocols"""
+    _c = _PROTOCOL_CONFIG
+    root_marker_override = None
+    for protocol in protocols:
+        if protocol in _c["root_marker_override"]:
+            root_marker_override = _c["root_marker_override"][protocol]
+            break
+    return {
+        "netloc_is_anchor": any(p in _c["netloc_is_anchor"] for p in protocols),
+        "supports_empty_parts": any(p in _c["supports_empty_parts"] for p in protocols),
+        "meaningful_trailing_slash": any(
+            p in _c["meaningful_trailing_slash"] for p in protocols
+        ),
+        "root_marker_override": root_marker_override,
     }
+
+
+def _class_level_spec(
+    spec: type[AbstractFileSystem | FileSystemFlavourBase],
+    *,
+    protocol: str | tuple[str, ...] | None = None,
+    root_marker: str | None = None,
+) -> type[AbstractFileSystem | FileSystemFlavourBase]:
+    """return a class providing the fsspec parsing API on the class level
+
+    Some fsspec filesystems implement parts of the parsing API as
+    properties or instance methods (e.g. `ArrowFSWrapper._parent`).
+    These are replaced by the `AbstractFileSystem` defaults in a derived
+    class. Overriding the protocol or root marker also applies to the
+    inherited parsing classmethods.
+    """
+    ns: dict[str, Any] = {}
+    if protocol is not None:
+        ns["protocol"] = protocol
+    elif not isinstance(inspect.getattr_static(spec, "protocol", None), (str, tuple)):
+        ns["protocol"] = ()
+    if root_marker is not None:
+        ns["root_marker"] = root_marker
+    elif not isinstance(inspect.getattr_static(spec, "root_marker", None), str):
+        ns["root_marker"] = AbstractFileSystem.root_marker
+    if not isinstance(inspect.getattr_static(spec, "sep", None), str):
+        ns["sep"] = AbstractFileSystem.sep
+    for name in _PARSING_METHODS:
+        method = inspect.getattr_static(spec, name, None)
+        if not isinstance(method, (classmethod, staticmethod)):
+            ns[name] = AbstractFileSystem.__dict__[name]
+    if not ns:
+        return spec
+    kwds = {"register": False} if issubclass(spec, FileSystemFlavourBase) else {}
+    return types.new_class(spec.__name__, (spec,), kwds, lambda d: d.update(ns))
+
+
+def _spec_for_protocol(
+    protocol: str,
+) -> type[AbstractFileSystem | FileSystemFlavourBase] | None:
+    """return the fsspec filesystem class or generated flavour for a protocol"""
+    # first try to get an already imported fsspec filesystem class
+    try:
+        return class_registry[protocol]
+    except KeyError:
+        pass
+    # next try to get the flavour from the generated flavour registry
+    try:
+        return flavour_registry[protocol]
+    except KeyError:
+        pass
+    # finally import filesystems registered with fsspec, but not yet imported
+    if protocol in known_implementations:
+        try:
+            return get_filesystem_class(protocol)
+        except ImportError:
+            pass
+    return None
+
+
+def _registered_parser(protocol: str) -> FSSpecParser | None:
+    """return the parser of the UPath implementation registered for protocol
+
+    Only returns parsers that were explicitly set on an already imported
+    UPath subclass, to avoid triggering imports.
+    """
+    from upath.registry import _registry
+
+    impl = _registry._m.get(protocol)
+    if isinstance(impl, str):
+        module_name, _, name = impl.rpartition(".")
+        impl = getattr(sys.modules.get(module_name), name, None)
+    if not isinstance(impl, type):
+        return None
+    parser = inspect.getattr_static(impl, "parser", None)
+    if not isinstance(parser, FSSpecParser):
+        return None
+    if protocol not in parser.protocol:
+        warnings.warn(
+            f"{impl.__name__}.parser does not handle the protocol {protocol!r},"
+            f" consider passing protocol={protocol!r} to its parser.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return parser
+
+
+class FSSpecParser(UPathParser):
+    """A path parser based on the parsing API of an fsspec filesystem.
+
+    Use it to customize how a UPath subclass parses its paths, for example
+    to make a custom filesystem behave like an object store:
+
+    ```python
+    class FooPath(S3Path):
+        parser = FSSpecParser(
+            FooFileSystem,
+            root_marker="",
+            netloc_is_anchor=True,
+            supports_empty_parts=True,
+        )
+    ```
+
+    The parser uses the filesystem's `_strip_protocol`,
+    `_get_kwargs_from_urls` and `_parent` classmethods, and its `protocol`,
+    `root_marker` and `sep` class attributes. Parts of the parsing API that
+    are implemented as instance methods or properties are replaced with the
+    `fsspec.AbstractFileSystem` defaults.
+
+    The options `netloc_is_anchor`, `supports_empty_parts` and
+    `meaningful_trailing_slash` default to the settings universal_pathlib
+    uses for the protocol of `spec`.
+
+    !!! warning "experimental"
+        This class is experimental and its API might still change.
+
+    Parameters
+    ----------
+    spec :
+        An fsspec filesystem class, or a protocol. A protocol is resolved
+        lazily on first use, to the fsspec filesystem class registered for
+        it, or to a generated parser source that does not require the
+        filesystem's dependencies to be installed.
+    protocol :
+        Override the protocol(s) the parser strips from urlpaths.
+    root_marker :
+        Override the root marker of the filesystem (`"/"` or `""`).
+    netloc_is_anchor :
+        Treat the netloc (bucket, container or host) as the anchor of paths.
+    supports_empty_parts :
+        Support empty path segments, e.g. `"bucket/a//b"`.
+    meaningful_trailing_slash :
+        Treat paths with and without trailing slash as different paths.
+    """
 
     def __init__(
         self,
-        spec: type[AbstractFileSystem | FileSystemFlavourBase] | AbstractFileSystem,
+        spec: str | type[AbstractFileSystem],
         *,
-        netloc_is_anchor: bool = False,
-        supports_empty_parts: bool = False,
-        meaningful_trailing_slash: bool = False,
-        root_marker_override: str | None = None,
+        protocol: str | tuple[str, ...] | None = None,
+        root_marker: str | None = None,
+        netloc_is_anchor: bool | None = None,
+        supports_empty_parts: bool | None = None,
+        meaningful_trailing_slash: bool | None = None,
     ) -> None:
-        """initialize the flavour with the given fsspec"""
-        self._spec = spec
+        if isinstance(spec, str):
+            protocols: Any = spec
+        elif isinstance(spec, type) and issubclass(spec, AbstractFileSystem):
+            protocols = inspect.getattr_static(spec, "protocol", None)
+            if not isinstance(protocols, (str, tuple)):
+                protocols = protocol
+            if not isinstance(protocols, (str, tuple)):
+                raise TypeError(
+                    f"can't determine the protocol of {spec.__name__!r},"
+                    " please provide the protocol keyword argument"
+                )
+        else:
+            raise TypeError(
+                "spec must be a protocol or an AbstractFileSystem subclass,"
+                f" got {spec!r}"
+            )
+        if isinstance(protocols, str):
+            protocols = (protocols,)
+        defaults = _protocol_defaults(protocols)
+        if root_marker is not None:
+            defaults["root_marker_override"] = None
+
+        self._spec_source: Any = spec
+        self._protocol_override = protocol
+        self._root_marker = root_marker
 
         # netloc is considered an anchor, influences:
         #   - splitdrive
         #   - join
-        self.netloc_is_anchor = bool(netloc_is_anchor)
-
+        self.netloc_is_anchor = bool(
+            defaults["netloc_is_anchor"]
+            if netloc_is_anchor is None
+            else netloc_is_anchor
+        )
         # supports empty parts, influences:
         #   - join
         #   - UPath._parse_path
-        self.supports_empty_parts = bool(supports_empty_parts)
-
+        self.supports_empty_parts = bool(
+            defaults["supports_empty_parts"]
+            if supports_empty_parts is None
+            else supports_empty_parts
+        )
         # meaningful trailing slash, influences:
         #   - join
         #   - UPath._parse_path
-        self.has_meaningful_trailing_slash = bool(meaningful_trailing_slash)
-
+        self.has_meaningful_trailing_slash = bool(
+            defaults["meaningful_trailing_slash"]
+            if meaningful_trailing_slash is None
+            else meaningful_trailing_slash
+        )
         # some filesystems require UPath to enforce a specific root marker
-        if root_marker_override is None:
-            self.root_marker_override = None
-        else:
-            self.root_marker_override = str(root_marker_override)
+        self.root_marker_override: str | None = defaults["root_marker_override"]
 
-    @classmethod
-    @lru_cache(maxsize=None)
-    def from_protocol(
-        cls,
-        protocol: str,
-    ) -> WrappedFileSystemFlavour:
-        """return the fsspec flavour for the given protocol"""
-
-        _c = cls.protocol_config
-        config: dict[str, Any] = {
-            "netloc_is_anchor": protocol in _c["netloc_is_anchor"],
-            "supports_empty_parts": protocol in _c["supports_empty_parts"],
-            "meaningful_trailing_slash": protocol in _c["meaningful_trailing_slash"],
-            "root_marker_override": _c["root_marker_override"].get(protocol),
-        }
-
-        # first try to get an already imported fsspec filesystem class
-        try:
-            return cls(class_registry[protocol], **config)
-        except KeyError:
-            pass
-        # next try to get the flavour from the generated flavour registry
-        # to avoid imports
-        try:
-            return cls(flavour_registry[protocol], **config)
-        except KeyError:
-            pass
-        # finally fallback to a default flavour for the protocol
-        if protocol in known_implementations:
-            warnings.warn(
-                f"Could not find default for known protocol {protocol!r}."
-                " Creating a default flavour for it. Please report this"
-                " to the universal_pathlib issue tracker.",
-                UserWarning,
-                stacklevel=2,
+    @cached_property
+    def _spec(
+        self,
+    ) -> type[AbstractFileSystem | FileSystemFlavourBase] | AbstractFileSystem:
+        spec = self._spec_source
+        protocol = self._protocol_override
+        if isinstance(spec, str):
+            resolved = _spec_for_protocol(spec)
+            if resolved is None:
+                resolved = AnyProtocolFileSystemFlavour
+                protocol = protocol or spec
+            spec = resolved
+        if isinstance(spec, type):
+            spec = _class_level_spec(
+                spec, protocol=protocol, root_marker=self._root_marker
             )
-        return cls(AnyProtocolFileSystemFlavour, **config)
+        return spec
 
-    def __repr__(self):
-        if isinstance(self._spec, type):
-            return f"<wrapped class {self._spec.__name__}>"
-        else:
-            return f"<wrapped instance {self._spec.__class__.__name__}>"
+    def __repr__(self) -> str:
+        spec = self._spec_source
+        args = [repr(spec) if isinstance(spec, str) else spec.__name__]
+        if self._protocol_override is not None:
+            args.append(f"protocol={self._protocol_override!r}")
+        if self._root_marker is not None:
+            args.append(f"root_marker={self._root_marker!r}")
+        args.append(f"netloc_is_anchor={self.netloc_is_anchor!r}")
+        args.append(f"supports_empty_parts={self.supports_empty_parts!r}")
+        args.append(f"meaningful_trailing_slash={self.has_meaningful_trailing_slash!r}")
+        return f"{type(self).__name__}({', '.join(args)})"
 
     # === fsspec.AbstractFileSystem ===================================
 
@@ -387,6 +545,94 @@ class WrappedFileSystemFlavour(UPathParser):  # (pathlib_abc.FlavourBase)
         return drive, root_marker, tail.removeprefix(self.sep)
 
 
+class WrappedFileSystemFlavour(FSSpecParser):
+    """flavour class for universal_pathlib
+
+    **INTERNAL AND VERY MUCH EXPERIMENTAL**
+
+    Use `upath.parsers.FSSpecParser` to customize path parsing instead.
+
+    Note:
+        In case you find yourself in need of subclassing this class,
+        please open an issue in the universal_pathlib issue tracker:
+        https://github.com/fsspec/universal_pathlib/issues
+        Ideally we can find a way to make your use-case work by adding
+        more functionality to this class.
+
+    """
+
+    protocol_config: ProtocolConfig = _PROTOCOL_CONFIG
+
+    def __init__(
+        self,
+        spec: type[AbstractFileSystem | FileSystemFlavourBase] | AbstractFileSystem,
+        *,
+        netloc_is_anchor: bool = False,
+        supports_empty_parts: bool = False,
+        meaningful_trailing_slash: bool = False,
+        root_marker_override: str | None = None,
+    ) -> None:
+        """initialize the flavour with the given fsspec"""
+        self._spec_source = spec
+        self._protocol_override = None
+        self._root_marker = None
+        self.netloc_is_anchor = bool(netloc_is_anchor)
+        self.supports_empty_parts = bool(supports_empty_parts)
+        self.has_meaningful_trailing_slash = bool(meaningful_trailing_slash)
+        if root_marker_override is None:
+            self.root_marker_override = None
+        else:
+            self.root_marker_override = str(root_marker_override)
+
+    @classmethod
+    @lru_cache(maxsize=None)
+    def from_protocol(
+        cls,
+        protocol: str,
+    ) -> FSSpecParser:
+        """return the fsspec flavour for the given protocol"""
+        # a parser set explicitly on a registered UPath implementation wins
+        parser = _registered_parser(protocol)
+        if parser is not None:
+            return parser
+
+        _c = cls.protocol_config
+        config: dict[str, Any] = {
+            "netloc_is_anchor": protocol in _c["netloc_is_anchor"],
+            "supports_empty_parts": protocol in _c["supports_empty_parts"],
+            "meaningful_trailing_slash": protocol in _c["meaningful_trailing_slash"],
+            "root_marker_override": _c["root_marker_override"].get(protocol),
+        }
+
+        # first try to get an already imported fsspec filesystem class
+        try:
+            return cls(class_registry[protocol], **config)
+        except KeyError:
+            pass
+        # next try to get the flavour from the generated flavour registry
+        # to avoid imports
+        try:
+            return cls(flavour_registry[protocol], **config)
+        except KeyError:
+            pass
+        # finally fallback to a default flavour for the protocol
+        if protocol in known_implementations:
+            warnings.warn(
+                f"Could not find default for known protocol {protocol!r}."
+                " Creating a default flavour for it. Please report this"
+                " to the universal_pathlib issue tracker.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return cls(AnyProtocolFileSystemFlavour, **config)
+
+    def __repr__(self) -> str:
+        if isinstance(self._spec, type):
+            return f"<wrapped class {self._spec.__name__}>"
+        else:
+            return f"<wrapped instance {self._spec.__class__.__name__}>"
+
+
 default_flavour = WrappedFileSystemFlavour(AnyProtocolFileSystemFlavour)
 
 
@@ -407,7 +653,7 @@ class LazyFlavourDescriptor:
 
     def __get__(
         self, obj: UPath | None, objtype: type[UPath] | None = None
-    ) -> WrappedFileSystemFlavour:
+    ) -> FSSpecParser:
         if obj is not None:
             return WrappedFileSystemFlavour.from_protocol(
                 obj._chain.active_path_protocol

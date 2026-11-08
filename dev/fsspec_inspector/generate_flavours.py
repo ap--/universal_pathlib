@@ -87,7 +87,9 @@ class FileSystemFlavourBase:
     def _parent(cls, path):
         raise NotImplementedError
 
-    def __init_subclass__(cls: Any, **kwargs):
+    def __init_subclass__(cls: Any, *, register: bool = True, **kwargs):
+        if not register:
+            return
         if isinstance(cls.protocol, str):
             protocols = (cls.protocol,)
         else:

@@ -154,6 +154,10 @@ class _Registry(MutableMapping[str, "type[upath.UPath]"]):
             get_upath_class.cache_clear()  # type: ignore[attr-defined]
             _get_implementation_protocols.cache_clear()  # type: ignore[attr-defined]
         self._m[item] = value
+        # the new implementation might provide a custom parser
+        from upath._flavour import WrappedFileSystemFlavour
+
+        WrappedFileSystemFlavour.from_protocol.cache_clear()  # type: ignore[attr-defined]  # noqa: E501
 
     def __delitem__(self, __v: str) -> None:
         raise NotImplementedError("removal is unsupported")

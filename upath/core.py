@@ -31,7 +31,6 @@ from upath._chain import DEFAULT_CHAIN_PARSER
 from upath._chain import Chain
 from upath._chain import FSSpecChainParser
 from upath._flavour import LazyFlavourDescriptor
-from upath._flavour import WrappedFileSystemFlavour
 from upath._flavour import upath_get_kwargs_from_url
 from upath._flavour import upath_urijoin
 from upath._info import UPathInfo
@@ -608,13 +607,13 @@ class _UPathMixin(metaclass=_UPathMeta):
             storage_options=storage_options,
         )
         # FIXME: normalization needs to happen in unchain already...
-        chain = Chain.from_list(Chain.from_list(segments).to_list())
+        self._chain = chain = Chain.from_list(Chain.from_list(segments).to_list())
         if len(args) > 1:
-            flavour = WrappedFileSystemFlavour.from_protocol(chain.active_path_protocol)
+            # use the parser of the class, which might be customized
+            flavour = self.parser
             joined = flavour.join(chain.active_path, *args[1:])
             stripped = flavour.strip_protocol(joined)
-            chain = chain.replace(path=stripped)
-        self._chain = chain
+            self._chain = chain.replace(path=stripped)
         self._chain_parser = chain_parser
         self._raw_urlpaths = args
         self._relative_base = None

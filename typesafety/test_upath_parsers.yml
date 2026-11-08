@@ -1,0 +1,24 @@
+- case: fsspec_parser_custom_upath_subclass
+  disable_cache: false
+  main: |
+    from fsspec.spec import AbstractFileSystem
+    from upath.implementations.cloud import S3Path
+    from upath.parsers import FSSpecParser
+    from upath.types import UPathParser
+
+    class FooFileSystem(AbstractFileSystem):
+        protocol = "foo"
+
+    class FooPath(S3Path):
+        parser = FSSpecParser(
+            FooFileSystem,
+            root_marker="",
+            netloc_is_anchor=True,
+            supports_empty_parts=True,
+        )
+
+    class BarPath(S3Path):
+        parser = FSSpecParser("s3", protocol="bar")
+
+    p: UPathParser = FooPath.parser
+    reveal_type(BarPath.parser)  # N: Revealed type is "upath._flavour.FSSpecParser"

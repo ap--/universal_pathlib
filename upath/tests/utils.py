@@ -52,6 +52,7 @@ def xfail_if_no_ssl_connection(func):
 @contextmanager
 def temporary_register(protocol, cls):
     """helper to temporarily register a protocol for testing purposes"""
+    from upath._flavour import WrappedFileSystemFlavour
     from upath.registry import _registry
     from upath.registry import get_upath_class
 
@@ -59,10 +60,12 @@ def temporary_register(protocol, cls):
     try:
         m[protocol] = cls
         get_upath_class.cache_clear()
+        WrappedFileSystemFlavour.from_protocol.cache_clear()
         yield
     finally:
         m.clear()
         get_upath_class.cache_clear()
+        WrappedFileSystemFlavour.from_protocol.cache_clear()
 
 
 def extends_base(method):
