@@ -341,8 +341,8 @@ class LocalPath(_UPathMixin, pathlib.Path):
             **fsspec_kwargs,
         )
 
-    def rmdir(self, recursive: bool = UNSET_DEFAULT) -> None:
-        if recursive is UNSET_DEFAULT or not recursive:
+    def rmdir(self, recursive: bool = False) -> None:
+        if not recursive:
             return super().rmdir()
         else:
             shutil.rmtree(self)

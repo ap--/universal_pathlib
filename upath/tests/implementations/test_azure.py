@@ -47,7 +47,7 @@ class TestAzurePath(BaseTests, metaclass=OverrideMeta):
         path = new_dir / "test.txt"
         path.write_text("hello")
         assert path.exists()
-        new_dir.rmdir()
+        new_dir.rmdir(recursive=True)
         assert not new_dir.exists()
 
         with pytest.raises(NotADirectoryError):
@@ -60,7 +60,7 @@ class TestAzurePath(BaseTests, metaclass=OverrideMeta):
             **self.storage_options,
         )
         if path.exists():
-            path.rmdir()
+            path.rmdir(recursive=True)
         path.mkdir(parents=True, exist_ok=False)
 
         (path / "file").write_text("foo")

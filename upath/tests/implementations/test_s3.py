@@ -49,7 +49,7 @@ class TestUPathS3(BaseTests, metaclass=OverrideMeta):
         dirname = "rmdir_test"
         mock_dir = self.path.joinpath(dirname)
         mock_dir.joinpath("test.txt").touch()
-        mock_dir.rmdir()
+        mock_dir.rmdir(recursive=True)
         assert not mock_dir.exists()
         with pytest.raises(NotADirectoryError):
             self.path.joinpath("file1.txt").rmdir()

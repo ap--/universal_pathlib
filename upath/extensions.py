@@ -363,11 +363,8 @@ class ProxyUPath:
     def unlink(self, missing_ok: bool = False) -> None:
         self.__wrapped__.unlink(missing_ok=missing_ok)
 
-    def rmdir(self, recursive: bool = UNSET_DEFAULT) -> None:  # fixme: non-standard
-        kwargs: dict[str, Any] = {}
-        if recursive is not UNSET_DEFAULT:
-            kwargs["recursive"] = recursive
-        self.__wrapped__.rmdir(**kwargs)
+    def rmdir(self, recursive: bool = False) -> None:  # fixme: non-standard
+        self.__wrapped__.rmdir(recursive=recursive)
 
     def rename(
         self,

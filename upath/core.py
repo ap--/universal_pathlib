@@ -1888,42 +1888,29 @@ class UPath(_UPathMixin, WritablePath, ReadablePath):
             return
         self.fs.rm(self.path, recursive=False)
 
-    def rmdir(self, recursive: bool = UNSET_DEFAULT) -> None:  # fixme: non-standard
+    def rmdir(self, recursive: bool = False) -> None:  # fixme: non-standard
         """
         Remove this directory.
+
+        The directory must be empty, like with pathlib.Path.rmdir(), unless
+        `recursive=True` is passed.
 
         Warning
         -------
         This method is non-standard compared to pathlib.Path.rmdir(),
         as it supports a `recursive` parameter to remove non-empty
-        directories and defaults to recursive deletion.
-
-        Removing a non-empty directory without passing `recursive`
-        raises a FutureWarning: in universal-pathlib 0.4.0 the default
-        becomes non-recursive, matching pathlib.Path.rmdir(). Pass
-        `recursive=True` explicitly to keep removing a directory and
-        its contents.
+        directories. Before universal-pathlib 0.4.0 the default was
+        `recursive=True`.
 
         """
         if not self.is_dir():
             raise NotADirectoryError(str(self))
-        if recursive is UNSET_DEFAULT:
-            recursive = True
-            if next(self.iterdir(), None) is not None:
-                warnings.warn(
-                    f"{type(self).__name__}.rmdir() currently removes a non-empty"
-                    " directory and its contents. In universal-pathlib 0.4.0 it will"
-                    " raise, like pathlib.Path.rmdir() does. Pass recursive=True to"
-                    " keep removing the contents.",
-                    FutureWarning,
-                    stacklevel=2,
-                )
-        elif not recursive:
+        if not recursive:
             if next(self.iterdir(), None) is not None:
                 raise OSError(f"Not recursive and directory not empty: {self}")
             self._rmdir_empty()
-            return
-        self.fs.rm(self.path, recursive=recursive)
+        else:
+            self.fs.rm(self.path, recursive=True)
 
     def _rmdir_empty(self) -> None:
         # some filesystems refuse to rm a directory without recursive=True,
