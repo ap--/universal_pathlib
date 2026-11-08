@@ -136,24 +136,27 @@ from upath import UPath
 path = UPath("s3://bucket/file.parquet", key="ACCESS_KEY", secret="SECRET_KEY")
 
 # Convert fsspec storage_options to object-store format
-object_store_options = {
-    "aws_access_key_id": path.storage_options.get("key"),
-    "aws_secret_access_key": path.storage_options.get("secret"),
-    # Add other options as needed
-}
+object_store_options = path.storage_options.to_object_store()
+# {'aws_access_key_id': 'ACCESS_KEY', 'aws_secret_access_key': 'SECRET_KEY'}
 
 df = pl.scan_parquet(path.as_uri(), storage_options=object_store_options)
 ```
 
 !!! info "Storage Options Mapping"
-    Polars uses [object-store configuration keys](https://docs.rs/object_store/latest/object_store/aws/enum.AmazonS3ConfigKey.html), which differ from fsspec's naming:
+    Polars uses [object-store configuration keys](https://docs.rs/object_store/latest/object_store/aws/enum.AmazonS3ConfigKey.html), which differ from fsspec's naming.
+    `StorageOptions.to_object_store()` translates the most common `s3fs`, `gcsfs`, and `adlfs`
+    options and raises a `ValueError` for options it can't translate (use `strict=False` to skip them).
+    It is available in universal_pathlib versions newer than `0.3.10`. On older versions,
+    translate the options manually, for example:
 
     | fsspec/s3fs | object-store |
     |-------------|--------------|
     | `key` | `aws_access_key_id` |
     | `secret` | `aws_secret_access_key` |
+    | `token` | `aws_session_token` |
+    | `anon` | `aws_skip_signature` |
     | `endpoint_url` | `aws_endpoint` |
-    | `region_name` | `aws_region` |
+    | `client_kwargs["region_name"]` | `aws_region` |
 
 See also: [pola-rs/polars#24921](https://github.com/pola-rs/polars/issues/24921)
 

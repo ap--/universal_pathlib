@@ -236,8 +236,8 @@ of the following code:
 
 ```python
 from pathlib_abc import ReadablePath, WritablePath
-from typing import Any, Mapping
 from fsspec import AbstractFileSystem
+from upath.types import StorageOptions
 
 class UPath(ReadablePath, WriteablePath):
     # the real implementation is more complex, but this is the general idea
@@ -247,8 +247,8 @@ class UPath(ReadablePath, WriteablePath):
         """The fsspec protocol for the path."""
 
     @property
-    def storage_options(self) -> Mapping[str, Any]:
-        """The fsspec storage options for the path."""
+    def storage_options(self) -> StorageOptions:
+        """The fsspec storage options for the path (a read-only mapping)."""
 
     @property
     def path(self) -> str:
@@ -273,6 +273,28 @@ fs = filesystem(p.protocol, **p.storage_options)  # equivalent to p.fs
 
 with fs.open(p.path) as f:
     data = f.read()
+```
+
+`UPath.storage_options` returns a `upath.types.StorageOptions` instance. It's a
+read-only mapping that behaves like a `dict` and provides methods to convert the
+storage options to formats used by other libraries:
+
+```python
+import fsspec
+import polars as pl
+from upath import UPath
+
+# chained paths: options keyed by protocol, as used by fsspec.open(urlpath, ...)
+p = UPath("simplecache::s3://bucket/file.txt", s3={"anon": True})
+p.storage_options.to_unchained()  # {'s3': {'anon': True}}
+with fsspec.open(str(p), **p.storage_options.to_unchained()) as f:
+    data = f.read()
+
+# rust object_store config for s3, gcs and azure, as used by polars and others
+p = UPath("s3://bucket/data.parquet", key="KEY", secret="SECRET")
+p.storage_options.to_object_store()
+# {'aws_access_key_id': 'KEY', 'aws_secret_access_key': 'SECRET'}
+df = pl.read_parquet(p.as_uri(), storage_options=p.storage_options.to_object_store())
 ```
 
 ## Supported Interface

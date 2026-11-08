@@ -2,7 +2,8 @@
 
 The types module provides type hints, protocols, and type aliases for working with UPath
 and filesystem operations. This includes abstract base classes, type aliases for path-like
-objects, and typed dictionaries for filesystem-specific storage options.
+objects, the read-only storage options mapping returned by `UPath.storage_options`,
+and typed dictionaries for filesystem-specific storage options.
 
 ## pathlib-abc base classes
 
@@ -112,12 +113,31 @@ Protocol for `os.stat_result`-like objects.
 
 ## Storage Options
 
+### Storage options mapping
+
+`UPath.storage_options` returns a read-only `StorageOptions` mapping, which provides
+methods to convert the storage options to the formats used by `fsspec.open` for chained
+urlpaths and by tools built on the rust `object_store` crate (e.g. polars).
+
+::: upath.types.StorageOptions
+    options:
+        heading_level: 4
+        show_root_heading: true
+        show_root_full_path: false
+        show_bases: true
+        members:
+        - protocol
+        - to_unchained
+        - to_object_store
+
+### Typed dictionaries
+
 Typed dictionaries providing type hints for filesystem-specific configuration options.
 These help ensure correct parameter names and types when configuring different filesystems.
 
 ::: upath.types.storage_options
     options:
-        heading_level: 3
+        heading_level: 4
         show_root_heading: true
         show_root_full_path: false
         show_bases: false

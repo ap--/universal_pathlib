@@ -257,6 +257,74 @@ with fs.open(path_str, 'rb') as f:
     data = f.read()
 ```
 
+### How do I pass storage options to fsspec, polars, or other libraries?
+
+`path.storage_options` returns a read-only `StorageOptions` mapping. It can be
+unpacked like a `dict`, and it provides conversion methods for libraries that
+expect storage options in a different format. Values that look like credentials
+are redacted in its `repr`:
+
+```python
+from upath import UPath
+
+path = UPath("s3://my-bucket/file.txt", key="KEY", secret="SECRET")
+
+path.storage_options
+# StorageOptions({'key': '***', 'secret': '***'}, protocol='s3')
+dict(path.storage_options)
+# {'key': 'KEY', 'secret': 'SECRET'}
+```
+
+**fsspec.open with chained urlpaths:** `fsspec.open()` and `fsspec.core.url_to_fs()`
+expect the options of every filesystem in a chained urlpath under the corresponding
+protocol key. Use `to_unchained()` to get them in this format:
+
+```python
+import fsspec
+from upath import UPath
+
+path = UPath("zip://data.csv::s3://bucket/archive.zip", s3={"anon": True})
+
+path.storage_options.to_unchained()
+# {'s3': {'anon': True}}
+
+with fsspec.open(str(path), "rb", **path.storage_options.to_unchained()) as f:
+    data = f.read()
+```
+
+**polars and other object_store based tools:** Polars (and other tools built on
+the rust [object_store](https://docs.rs/object_store/) crate, like `obstore` or
+`deltalake`) use different configuration keys than `s3fs`, `gcsfs`, and `adlfs`.
+Use `to_object_store()` to translate the storage options of `s3://`, `gs://`, and
+`az://` paths:
+
+```python
+import polars as pl
+from upath import UPath
+
+path = UPath(
+    "s3://my-bucket/data.parquet",
+    key="ACCESS_KEY_ID",
+    secret="SECRET_ACCESS_KEY",
+    client_kwargs={"region_name": "eu-central-1"},
+)
+
+path.storage_options.to_object_store()
+# {'aws_access_key_id': 'ACCESS_KEY_ID',
+#  'aws_secret_access_key': 'SECRET_ACCESS_KEY',
+#  'aws_region': 'eu-central-1'}
+
+df = pl.read_parquet(
+    path.as_uri(),
+    storage_options=path.storage_options.to_object_store(),
+)
+```
+
+`to_object_store()` raises a `ValueError` for storage options it can't translate
+unambiguously (for example `profile` or `client_kwargs={"verify": False}` for s3).
+Pass `strict=False` to skip them with a warning instead. Options that only
+configure fsspec's caching behavior (like `use_listings_cache`) are dropped.
+
 ### How do I create a custom UPath for a new filesystem?
 
 Let's say you have an fsspec filesystem with protocol `myproto` and the default
