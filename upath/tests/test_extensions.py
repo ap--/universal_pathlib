@@ -263,3 +263,15 @@ def test_proxy_upath_copy_from_local(tmp_path):
     source.move(destination)
 
     assert destination.read_text() == "hello"
+
+
+def test_proxy_upath_chain():
+    class MyProxyPath(ProxyUPath):
+        pass
+
+    pth = MyProxyPath("simplecache::memory://bucket/key")
+    assert len(pth.chain) == 2
+    assert pth.chain[0] is pth
+    assert isinstance(pth.chain[1], MyProxyPath)
+    assert pth.chain[1].protocol == "memory"
+    assert pth.chain[1].path == "/bucket/key"

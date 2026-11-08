@@ -353,6 +353,45 @@ class _UPathMixin(metaclass=_UPathMeta):
             return self.parser.strip_protocol(path)
         return self._chain.active_path
 
+    @property
+    def chain(self) -> Sequence[UPath]:
+        """The segments of a chained urlpath as a sequence of UPath instances.
+
+        The sequence is ordered like the chained urlpath, outermost segment
+        first. The first item is the path itself, and the item at index `i`
+        is the path operating on the urlpath chain starting at segment `i`.
+        Non-chained paths return a sequence containing only themselves.
+
+        Examples
+        --------
+        >>> from upath import UPath
+        >>> p = UPath("zip://data.csv::s3://bucket/archive.zip")
+        >>> p.chain[0] is p
+        True
+        >>> p.chain[-1]
+        S3Path('bucket/archive.zip', protocol='s3')
+        >>> [c.protocol for c in UPath("simplecache::s3://bucket/key").chain]
+        ['simplecache', 's3']
+
+        """
+        segments = self._chain.to_list()
+        if len(segments) == 1 or getattr(self, "_relative_base", None) is not None:
+            return (self,)  # type: ignore[return-value]
+
+        paths: list[UPath] = [self]  # type: ignore[list-item]
+        for idx in range(1, len(segments)):
+            chain = Chain.from_list(segments[idx:])
+            nested = chain.nest()
+            paths.append(
+                UPath(
+                    chain.active_path,
+                    protocol=nested.protocol,
+                    chain_parser=self._chain_parser,
+                    **nested.storage_options,
+                )
+            )
+        return tuple(paths)
+
     def joinuri(self, uri: JoinablePathLike) -> UPath:
         """Join with urljoin behavior for UPath instances.
 
@@ -647,6 +686,8 @@ class UPath(_UPathMixin, WritablePath, ReadablePath):
         The path that a fsspec filesystem can use.
     fs :
         The cached fsspec filesystem instance for the path.
+    chain :
+        The chained urlpath segments as a sequence of UPath instances.
 
     Methods
     -------

@@ -257,6 +257,26 @@ with fs.open(path_str, 'rb') as f:
     data = f.read()
 ```
 
+### How do I access the segments of a chained urlpath?
+
+fsspec allows chaining filesystems with `::`, for example to read a file inside
+a ZIP archive stored on S3. UPath operates on the outermost segment of the chain.
+Use `.chain` to get a UPath for the inner segments:
+
+```python
+path = UPath("zip://data.csv::s3://bucket/archive.zip")
+type(path).__name__  # 'ZipPath'
+path.read_text()     # reads data.csv from the archive
+
+archive = path.chain[-1]  # S3Path('bucket/archive.zip', protocol='s3')
+archive.stat().st_size    # size of the archive on S3
+
+[p.protocol for p in path.chain]  # ['zip', 's3']
+```
+
+`path.chain[0]` is always the path itself. Non-chained paths return a sequence
+containing only themselves.
+
 ### How do I create a custom UPath for a new filesystem?
 
 Let's say you have an fsspec filesystem with protocol `myproto` and the default

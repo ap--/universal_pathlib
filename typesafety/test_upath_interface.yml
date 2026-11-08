@@ -40,6 +40,14 @@
     # todo: this can change once fsspec is typed
     reveal_type(p.fs)  # N: Revealed type is "Any"
 
+- case: upath_special_chain
+  disable_cache: false
+  main: |
+    from upath import UPath
+
+    p = UPath("abc")
+    reveal_type(p.chain)  # N: Revealed type is "typing.Sequence[upath.core.UPath]"
+
 - case: upath_special_joinuri
   disable_cache: false
   main: |

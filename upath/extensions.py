@@ -463,6 +463,11 @@ class ProxyUPath:
     def path(self) -> str:
         return self.__wrapped__.path
 
+    @property
+    def chain(self) -> Sequence[Self]:
+        _, *inner = self.__wrapped__.chain
+        return (self, *map(self._from_upath, inner))
+
     def joinuri(self, uri: JoinablePathLike) -> Self:
         return self._from_upath(self.__wrapped__.joinuri(uri))
 
