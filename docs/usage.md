@@ -257,6 +257,30 @@ with fs.open(path_str, 'rb') as f:
     data = f.read()
 ```
 
+### How do I use UPath from async code? (experimental)
+
+The `.aio` accessor provides awaitable versions of a few I/O methods
+(`exists`, `is_dir`, `is_file`, `stat`, `read_bytes`, `read_text`,
+`write_bytes`, `write_text` and `iterdir` as an async iterator):
+
+```python
+import asyncio
+from upath import UPath
+
+async def main():
+    path = UPath("memory:///folder/")  # or s3://, gs://, az://, ...
+    await path.joinpath("file.txt").aio.write_text("hello")
+    async for child in path.aio.iterdir():
+        print(child, await child.aio.read_bytes())
+
+asyncio.run(main())
+```
+
+Filesystems implementing the fsspec async API (s3, gcs, az, http, ...) are
+called natively via an `asynchronous=True` filesystem instance that is created
+and cached per running event loop. All other filesystems, and local
+`PosixUPath`/`WindowsUPath` instances, run the sync method in a worker thread.
+
 ### How do I create a custom UPath for a new filesystem?
 
 Let's say you have an fsspec filesystem with protocol `myproto` and the default
