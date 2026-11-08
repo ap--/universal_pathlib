@@ -21,7 +21,7 @@
     from upath import UPath
 
     p = UPath("abc")
-    reveal_type(p.storage_options)  # N: Revealed type is "typing.Mapping[builtins.str, Any]"
+    reveal_type(p.storage_options)  # N: Revealed type is "upath.types.storage_options.StorageOptions"
 
 - case: upath_special_path
   disable_cache: false

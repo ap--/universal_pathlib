@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Iterator
-from collections.abc import Mapping
 from collections.abc import Sequence
 from typing import IO
 from typing import TYPE_CHECKING
@@ -29,6 +28,7 @@ from upath.types import PathInfo
 from upath.types import ReadablePath
 from upath.types import ReadablePathLike
 from upath.types import StatResultType
+from upath.types import StorageOptions
 from upath.types import SupportsPathLike
 from upath.types import UPathParser
 from upath.types import WritablePathLike
@@ -452,7 +452,7 @@ class ProxyUPath:
         return self.__wrapped__.protocol
 
     @property
-    def storage_options(self) -> Mapping[str, Any]:
+    def storage_options(self) -> StorageOptions:
         return self.__wrapped__.storage_options
 
     @property

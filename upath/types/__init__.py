@@ -16,6 +16,7 @@ from upath.types._abc import PathInfo
 from upath.types._abc import PathParser
 from upath.types._abc import ReadablePath
 from upath.types._abc import WritablePath
+from upath.types.storage_options import StorageOptions
 
 if TYPE_CHECKING:
 
@@ -38,6 +39,7 @@ __all__ = [
     "UPathParser",
     "UNSET_DEFAULT",
     "OnNameCollisionFunc",
+    "StorageOptions",
 ]
 
 

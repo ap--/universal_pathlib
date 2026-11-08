@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import sys
-from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from upath.core import UPath
 from upath.types import JoinablePathLike
+from upath.types import StorageOptions
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -55,7 +55,7 @@ class SimpleCachePath(UPath):
         )
 
     @property
-    def storage_options(self) -> Mapping[str, Any]:
+    def storage_options(self) -> StorageOptions:
         so = self._storage_options.copy()
         so.pop("fo", None)
-        return MappingProxyType(so)
+        return StorageOptions(so, protocol=self._protocol)

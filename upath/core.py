@@ -11,7 +11,6 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 from copy import copy
 from pathlib import PurePath
-from types import MappingProxyType
 from typing import IO
 from typing import TYPE_CHECKING
 from typing import Any
@@ -48,6 +47,7 @@ from upath.types import PathInfo
 from upath.types import ReadablePath
 from upath.types import ReadablePathLike
 from upath.types import StatResultType
+from upath.types import StorageOptions
 from upath.types import SupportsPathLike
 from upath.types import UPathParser
 from upath.types import WritablePath
@@ -268,7 +268,7 @@ class _UPathMixin(metaclass=_UPathMeta):
         return self._protocol
 
     @property
-    def storage_options(self) -> Mapping[str, Any]:
+    def storage_options(self) -> StorageOptions:
         """The read-only fsspec storage options for the path.
 
         Note
@@ -278,15 +278,21 @@ class _UPathMixin(metaclass=_UPathMeta):
         connection settings, and other options that affect how the
         filesystem interacts with the underlying storage.
 
+        The returned `StorageOptions` mapping provides methods to convert
+        the options to other formats, e.g. `to_unchained()` for use with
+        `fsspec.open`.
+
         Examples
         --------
         >>> from upath import UPath
         >>> p = UPath("s3://my-bucket/path/to/file.txt", anon=True)
         >>> p.storage_options['anon']
         True
+        >>> p.storage_options
+        StorageOptions({'anon': True}, protocol='s3')
 
         """
-        return MappingProxyType(self._storage_options)
+        return StorageOptions(self._storage_options, protocol=self._protocol)
 
     @property
     def fs(self) -> AbstractFileSystem:

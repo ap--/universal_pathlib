@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import textwrap
+from collections.abc import Iterator
+from collections.abc import Mapping
+from pprint import pformat
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import TypedDict
 
 if TYPE_CHECKING:
     from asyncio import AbstractEventLoop
-    from typing import Any
     from typing import Literal
 
     from fsspec.implementations.cache_mapper import AbstractCacheMapper
@@ -15,6 +19,7 @@ if TYPE_CHECKING:
 
 
 __all__ = [
+    "StorageOptions",
     "SimpleCacheStorageOptions",
     "GCSStorageOptions",
     "S3StorageOptions",
@@ -33,6 +38,222 @@ __all__ = [
     "ZipStorageOptions",
     "TarStorageOptions",
 ]
+
+_REDACTED = "***"
+_SENSITIVE_KEY_PARTS = (
+    "key",
+    "secret",
+    "token",
+    "password",
+    "passphrase",
+    "credential",
+    "auth",
+    "sas",
+    "connection_string",
+)
+# gcsfs token values that select an authentication method
+_NON_SECRET_TOKENS = frozenset({"anon", "google_default", "cache", "cloud", "browser"})
+
+
+def _is_sensitive(key: Any, value: Any) -> bool:
+    if value is None or isinstance(value, (bool, int, float)):
+        return False
+    elif not isinstance(key, str):
+        return False
+    elif key == "token" and isinstance(value, str) and value in _NON_SECRET_TOKENS:
+        return False
+    key = key.lower()
+    return any(part in key for part in _SENSITIVE_KEY_PARTS)
+
+
+def _redact(options: Mapping[str, Any]) -> dict[str, Any]:
+    """return a copy of options with credential-like values redacted"""
+    redacted: dict[str, Any] = {}
+    for key, value in options.items():
+        if _is_sensitive(key, value):
+            value = _REDACTED
+        elif isinstance(value, Mapping):
+            value = _redact(value)
+        redacted[key] = value
+    return redacted
+
+
+def _make_storage_options(
+    cls: type[StorageOptions],
+    options: Mapping[str, Any],
+    protocol: str,
+) -> StorageOptions:
+    """helper for pickling StorageOptions instances"""
+    return cls(options, protocol=protocol)
+
+
+class StorageOptions(Mapping[str, Any]):
+    """Read-only mapping of the fsspec storage options of a path.
+
+    `UPath.storage_options` returns an instance of this class. It behaves
+    like a read-only `dict` (it compares equal to plain dicts and can be
+    unpacked via `**`), and it knows the `protocol` of the filesystem the
+    options belong to, which allows converting the options to formats
+    understood by other libraries.
+
+    For chained paths (e.g. `"simplecache::s3://bucket/file.txt"`), the
+    storage options of the inner filesystems are nested under the
+    `target_protocol` / `target_options` keys, exactly like they are
+    passed to the outermost fsspec filesystem.
+
+    Parameters
+    ----------
+    options :
+        The fsspec storage options.
+    protocol :
+        The fsspec protocol of the filesystem the options belong to.
+
+    Note
+    ----
+    The `repr` of a `StorageOptions` instance redacts values of keys that
+    look like credentials (e.g. `secret`, `token`, `account_key`, ...).
+    Use `dict(storage_options)` to access the actual values.
+
+    Examples
+    --------
+    >>> from upath import UPath
+    >>> p = UPath("s3://bucket/file.txt", anon=True)
+    >>> p.storage_options
+    StorageOptions({'anon': True}, protocol='s3')
+    >>> p.storage_options == {"anon": True}
+    True
+
+    """
+
+    __slots__ = ("_options", "_protocol")
+
+    def __init__(
+        self,
+        options: Mapping[str, Any] | None = None,
+        /,
+        *,
+        protocol: str,
+    ) -> None:
+        self._options: dict[str, Any] = dict(options) if options is not None else {}
+        self._protocol = protocol
+
+    @property
+    def protocol(self) -> str:
+        """The fsspec protocol of the filesystem the options belong to."""
+        return self._protocol
+
+    # === Mapping interface ===========================================
+
+    def __getitem__(self, key: str) -> Any:
+        return self._options[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._options)
+
+    def __len__(self) -> int:
+        return len(self._options)
+
+    def __contains__(self, key: object) -> bool:
+        return key in self._options
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, StorageOptions):
+            return self._options == other._options
+        elif isinstance(other, Mapping):
+            return self._options == dict(other.items())
+        else:
+            return NotImplemented
+
+    __hash__ = None  # type: ignore[assignment]
+
+    # === types.MappingProxyType compatibility ========================
+
+    def copy(self) -> dict[str, Any]:
+        """Return a shallow copy of the storage options as a `dict`."""
+        return self._options.copy()
+
+    def __reversed__(self) -> Iterator[str]:
+        return reversed(self._options)
+
+    def __or__(self, other: Mapping[str, Any]) -> dict[str, Any]:
+        if not isinstance(other, Mapping):
+            return NotImplemented
+        return {**self._options, **other}
+
+    def __ror__(self, other: Mapping[str, Any]) -> dict[str, Any]:
+        if not isinstance(other, Mapping):
+            return NotImplemented
+        return {**other, **self._options}
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        return _make_storage_options, (type(self), self._options, self._protocol)
+
+    def __repr__(self) -> str:
+        cls_name = type(self).__name__
+        options = _redact(self._options)
+        text = f"{cls_name}({options!r}, protocol={self._protocol!r})"
+        if len(text) <= 80:
+            return text
+        formatted = textwrap.indent(
+            pformat(options, width=76, sort_dicts=False), "    "
+        )
+        return f"{cls_name}(\n{formatted},\n    protocol={self._protocol!r},\n)"
+
+    # === conversions =================================================
+
+    def to_unchained(self) -> dict[str, dict[str, Any]]:
+        """Return the storage options keyed by protocol.
+
+        This is the format `fsspec.open` and `fsspec.core.url_to_fs` use
+        for chained urlpaths: the options of every filesystem in the chain
+        are provided under the corresponding protocol key. The nested
+        `target_protocol`, `target_options` and `fo` keys of chained
+        filesystems are resolved. Filesystems without storage options are
+        omitted. Local paths without protocol are keyed under `"file"`.
+
+        Raises
+        ------
+        ValueError
+            If the same protocol appears more than once in the chain and
+            the options can't be unambiguously assigned to a protocol key.
+
+        Examples
+        --------
+        >>> import fsspec
+        >>> from upath import UPath
+        >>> p = UPath(
+        ...     "simplecache::memory:///file.txt",
+        ...     cache_storage="/tmp/cache",
+        ...     memory={"skip_instance_cache": True},
+        ... )
+        >>> p.storage_options.to_unchained()
+        {'simplecache': {'cache_storage': '/tmp/cache'}, 'memory': {'skip_instance_cache': True}}
+        >>> f = fsspec.open(str(p), **p.storage_options.to_unchained())
+
+        """  # noqa: E501
+        unchained: dict[str, dict[str, Any]] = {}
+        seen: set[str] = set()
+        protocol = self._protocol
+        options = dict(self._options)
+        while True:
+            is_chained = "target_protocol" in options
+            if is_chained:
+                target_protocol = options.pop("target_protocol")
+                target_options = options.pop("target_options", None) or {}
+                options.pop("fo", None)  # codespell:ignore fo
+            key = protocol or "file"
+            if key in seen and (options or key in unchained):
+                raise ValueError(
+                    f"cannot unchain storage options: protocol {key!r} appears"
+                    " multiple times in the chain"
+                )
+            seen.add(key)
+            if options:
+                unchained[key] = options
+            if not is_chained:
+                return unchained
+            protocol = target_protocol
+            options = dict(target_options)
 
 
 class _AbstractStorageOptions(TypedDict, total=False):

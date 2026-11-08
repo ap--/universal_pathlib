@@ -211,7 +211,7 @@
     from upath import UPath
 
     p = UPath("")
-    reveal_type(p.storage_options)  # N: Revealed type is "typing.Mapping[builtins.str, Any]"
+    reveal_type(p.storage_options)  # N: Revealed type is "upath.types.storage_options.StorageOptions"
 
 - case: upath_attribute__url
   disable_cache: false
@@ -305,7 +305,7 @@
     reveal_type(p.parents)           # N: Revealed type is "typing.Sequence[{{ module }}.{{ cls }}]"
     reveal_type(p.path)              # N: Revealed type is "builtins.str"
     reveal_type(p.protocol)          # N: Revealed type is "builtins.str"
-    reveal_type(p.storage_options)   # N: Revealed type is "typing.Mapping[builtins.str, Any]"
+    reveal_type(p.storage_options)   # N: Revealed type is "upath.types.storage_options.StorageOptions"
     # reveal_type(p.fs)
     # reveal_type(p.parser)
     reveal_type(p.info)              # NR: Revealed type is ".*PathInfo"
