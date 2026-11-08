@@ -70,6 +70,8 @@ if TYPE_CHECKING:
     from pydantic import GetCoreSchemaHandler
     from pydantic_core.core_schema import CoreSchema
 
+    from upath._aio import UPathAsyncAccessor
+
     _MT = TypeVar("_MT")
     _WT = TypeVar("_WT", bound="WritablePath")
 
@@ -287,6 +289,27 @@ class _UPathMixin(metaclass=_UPathMeta):
 
         """
         return MappingProxyType(self._storage_options)
+
+    @property
+    def aio(self) -> UPathAsyncAccessor[Self]:
+        """Asynchronous versions of the path's I/O methods (experimental).
+
+        Native fsspec async filesystems are used via their coroutine API,
+        all other filesystems run the sync method in a worker thread.
+
+        Examples
+        --------
+        >>> from upath import UPath
+        >>> async def main():
+        ...     p = UPath("memory:///folder/file.txt")
+        ...     await p.aio.write_text("hello")
+        ...     async for child in p.parent.aio.iterdir():
+        ...         print(child, await child.aio.read_text())
+
+        """
+        from upath._aio import UPathAsyncAccessor
+
+        return UPathAsyncAccessor(self)
 
     @property
     def fs(self) -> AbstractFileSystem:
